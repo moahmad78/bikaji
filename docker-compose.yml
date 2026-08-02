@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  # Database Service (Postgres V15)
+  postgres:
+    image: postgres:15-alpine
+    container_name: hms_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: bikaji_ordering
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: securepassword123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # In-Memory Cache and pub/sub adapter for cluster scaling (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: hms_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  # Standalone real-time notification WebSocket server
+  websocket-server:
+    image: node:20-alpine
+    container_name: hms_websocket
+    restart: always
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      SOCKET_PORT: 3001
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3001:3001"
+    command: >
+      sh -c "npm install --no-audit --no-fund && node socket-server.js"
+    depends_on:
+      - redis
+
+  # Next.js standalone frontend application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hms_app
+    restart: always
+    environment:
+      DATABASE_URL: postgres://postgres:securepassword123@postgres:5432/bikaji_ordering
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      SOCKET_SERVER_URL: http://websocket-server:3001
+      QR_SECRET_KEY: c65239fb8bfa4674a27090f394621bfa4674a27090f394621bfa
+      BETTER_AUTH_SECRET: supersecretauthkey123
+      BETTER_AUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+      - websocket-server
+
+volumes:
+  postgres_data:

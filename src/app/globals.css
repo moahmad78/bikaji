@@ -1,0 +1,192 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand Palette - Luxury Maroon (Primary Scale) */
+  --color-maroon-50: #fdf2f4;
+  --color-maroon-100: #fbe6ea;
+  --color-maroon-200: #f7ced6;
+  --color-maroon-300: #f1a9b7;
+  --color-maroon-400: #e77990;
+  --color-maroon-500: #d84c68;
+  --color-maroon-600: #c12c4b;
+  --color-maroon-700: #a21e38;
+  --color-maroon-800: #871b30;
+  --color-maroon-900: #701a2b; /* Core Brand Primary */
+  --color-maroon-950: #430a14;
+
+  /* Brand Palette - Royal Gold (Secondary/Accent Scale) */
+  --color-gold-50: #fbfaf0;
+  --color-gold-100: #f6f3d4;
+  --color-gold-200: #ece6a6;
+  --color-gold-300: #dfd26e;
+  --color-gold-400: #d1bb3e;
+  --color-gold-500: #c3a22c;
+  --color-gold-600: #b58c24; /* Core Brand Secondary */
+  --color-gold-700: #906b1e;
+  --color-gold-800: #70511c;
+  --color-gold-900: #5c411a;
+  --color-gold-950: #3b260d;
+
+  /* Brand Palette - Warm Cream / Neutrals Scale */
+  --color-neutral-50: #fdfbf7; /* App Canvas BG */
+  --color-neutral-100: #f9f5eb; /* Card/Surface Neutral */
+  --color-neutral-200: #f2ebda; /* Borders */
+  --color-neutral-300: #e4d8c2;
+  --color-neutral-400: #d1bf9f; /* Placeholders, tertiary copy */
+  --color-neutral-500: #baa47f;
+  --color-neutral-600: #a38c67; /* Secondary copy */
+  --color-neutral-700: #897352;
+  --color-neutral-800: #705d42;
+  --color-neutral-900: #5a4a35; /* Primary Text (Dark Brown) */
+  --color-neutral-950: #1f1a1b; /* High contrast obsidian */
+
+  /* Global Semantics */
+  --color-success-base: #10b981;
+  --color-success-dark: #064e3b;
+  --color-warning-base: #f59e0b;
+  --color-warning-dark: #451a03;
+  --color-danger-base: #ef4444;
+  --color-danger-dark: #450a0a;
+
+  /* Theme Defaults (Light Cream Theme) */
+  --background: var(--color-neutral-50);
+  --foreground: var(--color-neutral-900);
+  --card: #ffffff;
+  --card-foreground: var(--color-neutral-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-neutral-900);
+  --primary: var(--color-maroon-900);
+  --primary-foreground: var(--color-neutral-50);
+  --secondary: var(--color-neutral-100);
+  --secondary-foreground: var(--color-maroon-900);
+  --muted: var(--color-neutral-100);
+  --muted-foreground: var(--color-neutral-600);
+  --accent: var(--color-gold-600);
+  --accent-foreground: var(--color-neutral-950);
+  --destructive: var(--color-danger-base);
+  --destructive-foreground: var(--color-neutral-50);
+  --border: var(--color-neutral-200);
+  --input: var(--color-neutral-100);
+  --ring: var(--color-maroon-900);
+
+  /* Border Radii Tokens */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px; /* Core Design Standard */
+  --radius-2xl: 24px;
+  --radius-premium: 20px; /* Backward compatibility mapping */
+
+  /* Soft Elevation Shadows */
+  --shadow-soft: 0 2px 8px rgba(31, 26, 27, 0.03);
+  --shadow-medium: 0 4px 16px rgba(31, 26, 27, 0.05);
+  --shadow-large: 0 8px 32px rgba(31, 26, 27, 0.08);
+  --shadow-floating: 0 12px 48px rgba(31, 26, 27, 0.12);
+  --shadow-modal: 0 20px 64px rgba(31, 26, 27, 0.18);
+  --shadow-dropdown: 0 4px 20px rgba(31, 26, 27, 0.05);
+}
+
+@theme {
+  --color-maroon-50: var(--color-maroon-50);
+  --color-maroon-100: var(--color-maroon-100);
+  --color-maroon-200: var(--color-maroon-200);
+  --color-maroon-300: var(--color-maroon-300);
+  --color-maroon-400: var(--color-maroon-400);
+  --color-maroon-500: var(--color-maroon-500);
+  --color-maroon-600: var(--color-maroon-600);
+  --color-maroon-700: var(--color-maroon-700);
+  --color-maroon-800: var(--color-maroon-800);
+  --color-maroon-900: var(--color-maroon-900);
+  --color-maroon-950: var(--color-maroon-950);
+
+  --color-gold-50: var(--color-gold-50);
+  --color-gold-100: var(--color-gold-100);
+  --color-gold-200: var(--color-gold-200);
+  --color-gold-300: var(--color-gold-300);
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-600: var(--color-gold-600);
+  --color-gold-700: var(--color-gold-700);
+  --color-gold-800: var(--color-gold-800);
+  --color-gold-900: var(--color-gold-900);
+  --color-gold-950: var(--color-gold-950);
+
+  --color-neutral-50: var(--color-neutral-50);
+  --color-neutral-100: var(--color-neutral-100);
+  --color-neutral-200: var(--color-neutral-200);
+  --color-neutral-300: var(--color-neutral-300);
+  --color-neutral-400: var(--color-neutral-400);
+  --color-neutral-500: var(--color-neutral-500);
+  --color-neutral-600: var(--color-neutral-600);
+  --color-neutral-700: var(--color-neutral-700);
+  --color-neutral-800: var(--color-neutral-800);
+  --color-neutral-900: var(--color-neutral-900);
+  --color-neutral-950: var(--color-neutral-950);
+
+  --background: var(--background);
+  --foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-premium: var(--radius-premium);
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-medium: var(--shadow-medium);
+  --shadow-large: var(--shadow-large);
+  --shadow-floating: var(--shadow-floating);
+  --shadow-modal: var(--shadow-modal);
+  --shadow-dropdown: var(--shadow-dropdown);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Dark Mode Overrides (Obsidian Charcoal Theme) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #160b0c;
+    --foreground: #fdfbf7;
+    --card: #1f1012;
+    --card-foreground: #fdfbf7;
+    --popover: #1f1012;
+    --popover-foreground: #fdfbf7;
+    --primary: #721927;
+    --primary-foreground: #fdfbf7;
+    --secondary: #251416;
+    --secondary-foreground: #fdfbf7;
+    --muted: #2f1d20;
+    --muted-foreground: #a6989a;
+    --accent: #f3d078;
+    --accent-foreground: #160b0c;
+    --border: #361f22;
+    --input: #361f22;
+    --ring: #f3d078;
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

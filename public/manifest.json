@@ -1,0 +1,56 @@
+{
+  "name": "Bikaji - QR Smart Ordering System",
+  "short_name": "Bikaji Dining",
+  "description": "Enterprise-grade digital dining and instant ordering for Bikaji Premium Indian Dining.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b0506",
+  "theme_color": "#800020",
+  "categories": ["food", "ordering", "lifestyle", "shopping"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Digital Menu",
+      "short_name": "Menu",
+      "description": "Explore Bikaji delicacies & dishes",
+      "url": "/menu",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Waiter Portal",
+      "short_name": "Waiter",
+      "description": "Floor management and table assistance",
+      "url": "/waiter",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Kitchen Display",
+      "short_name": "Kitchen",
+      "description": "KDS live order tickets queue",
+      "url": "/kitchen",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}
