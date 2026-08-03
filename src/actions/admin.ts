@@ -38,20 +38,30 @@ export async function getAdminDashboardData() {
     // Fetch all orders today
     const todayOrders = await db.order.findMany({
       where: { branchId, createdAt: { gte: startOfToday, lte: endOfToday }, deletedAt: null },
-      include: { items: true }
+      include: { items: true, table: true }
     });
 
+    const activeOrdersToday = todayOrders.filter(o => o.status !== OrderStatus.CANCELLED && o.status !== OrderStatus.REFUNDED);
+
     // Today's Stats
-    const todayRevenue = todayOrders
-      .filter(o => o.paymentStatus === PaymentStatus.PAID)
-      .reduce((sum, o) => sum + o.finalAmount, 0);
+    const todayRevenue = activeOrdersToday.reduce((sum, o) => sum + o.finalAmount, 0);
 
-    const completedOrdersCount = todayOrders.filter(o => o.status === OrderStatus.COMPLETED || o.status === OrderStatus.SERVED).length;
-    const runningOrdersCount = todayOrders.filter(o => ([OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.PREPARING, OrderStatus.READY] as OrderStatus[]).includes(o.status)).length;
-    const cancelledOrdersCount = todayOrders.filter(o => o.status === OrderStatus.CANCELLED).length;
+    const pendingOrdersCount = todayOrders.filter(o => o.status === OrderStatus.PENDING).length;
+    const acceptedOrdersCount = todayOrders.filter(o => o.status === OrderStatus.ACCEPTED || o.status === OrderStatus.RECEIVED).length;
+    const preparingOrdersCount = todayOrders.filter(o => o.status === OrderStatus.PREPARING).length;
+    const readyOrdersCount = todayOrders.filter(o => o.status === OrderStatus.READY).length;
+    const pickedUpOrdersCount = todayOrders.filter(o => (o.status as any) === "OUT_FOR_DELIVERY").length;
+    const deliveredOrdersCount = todayOrders.filter(o => o.status === OrderStatus.SERVED).length;
+    const completedOrdersCount = todayOrders.filter(o => o.status === OrderStatus.COMPLETED).length;
+    const cancelledOrdersCount = todayOrders.filter(o => o.status === OrderStatus.CANCELLED || o.status === OrderStatus.REFUNDED).length;
+    const delayedOrdersCount = todayOrders.filter((o: any) => o.isDelayed).length;
 
-    const averageOrderValue = todayOrders.length > 0
-      ? parseFloat((todayOrders.reduce((sum, o) => sum + o.finalAmount, 0) / todayOrders.length).toFixed(2))
+    const runningOrdersCount = pendingOrdersCount + acceptedOrdersCount + preparingOrdersCount + readyOrdersCount + pickedUpOrdersCount;
+    const kitchenQueueCount = pendingOrdersCount + acceptedOrdersCount + preparingOrdersCount;
+    const waiterQueueCount = readyOrdersCount + pickedUpOrdersCount;
+
+    const averageOrderValue = activeOrdersToday.length > 0
+      ? parseFloat((todayRevenue / activeOrdersToday.length).toFixed(2))
       : 0.0;
 
     // Table Counts & Lists
@@ -83,15 +93,22 @@ export async function getAdminDashboardData() {
       orderBy: { number: "asc" }
     });
 
+    const totalCustomersToday = new Set(todayOrders.map(o => o.customerName || o.tableId)).size || todayOrders.length;
+
     // Bestsellers Today
-    const dishCountMap: Record<string, { name: string, quantity: number, price: number }> = {};
-    todayOrders.forEach(o => {
-      if (o.status === OrderStatus.CANCELLED) return;
+    const dishCountMap: Record<string, { name: string, quantity: number, price: number, revenue: number }> = {};
+    activeOrdersToday.forEach(o => {
       o.items.forEach(item => {
         if (dishCountMap[item.menuItemId]) {
           dishCountMap[item.menuItemId].quantity += item.quantity;
+          dishCountMap[item.menuItemId].revenue += item.price * item.quantity;
         } else {
-          dishCountMap[item.menuItemId] = { name: item.name, quantity: item.quantity, price: item.price };
+          dishCountMap[item.menuItemId] = {
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            revenue: item.price * item.quantity
+          };
         }
       });
     });
@@ -101,19 +118,27 @@ export async function getAdminDashboardData() {
       .slice(0, 5);
 
     // Hourly distribution for orders today
-    const hourlyOrders = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    const hourlyOrders = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0, revenue: 0 }));
     todayOrders.forEach(o => {
       const hr = new Date(o.createdAt).getHours();
       hourlyOrders[hr].count++;
+      if (o.status !== OrderStatus.CANCELLED && o.status !== OrderStatus.REFUNDED) {
+        hourlyOrders[hr].revenue += o.finalAmount;
+      }
     });
 
     // Payment methods division
     const paymentMethods = {
-      UPI: todayOrders.filter(o => o.paymentMethod === PaymentMethod.UPI && o.paymentStatus === PaymentStatus.PAID).length,
-      CASH: todayOrders.filter(o => o.paymentMethod === PaymentMethod.CASH && o.paymentStatus === PaymentStatus.PAID).length,
-      CARD: todayOrders.filter(o => o.paymentMethod === PaymentMethod.CARD && o.paymentStatus === PaymentStatus.PAID).length,
-      SPLIT_BILL: todayOrders.filter(o => o.paymentMethod === PaymentMethod.SPLIT_BILL && o.paymentStatus === PaymentStatus.PAID).length,
+      UPI: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.UPI).length,
+      CASH: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.CASH).length,
+      CARD: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.CARD).length,
+      SPLIT_BILL: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.SPLIT_BILL).length,
+      PAY_LATER: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.PAY_LATER).length,
     };
+
+    // Coupon metrics
+    const totalCouponsUsed = todayOrders.filter((o: any) => o.couponCode).length;
+    const totalCouponDiscount = todayOrders.reduce((sum, o: any) => sum + (o.discountAmount || 0), 0);
 
     // Live Feed logs (retrieve last 8 activity logs)
     const liveActivity = await db.activityLog.findMany({
@@ -121,6 +146,14 @@ export async function getAdminDashboardData() {
       orderBy: { createdAt: "desc" },
       take: 8,
       include: { user: true }
+    });
+
+    // Recent orders
+    const recentOrders = await db.order.findMany({
+      where: { branchId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: { items: true, table: true }
     });
 
     return {
@@ -132,13 +165,26 @@ export async function getAdminDashboardData() {
         completedOrdersCount,
         runningOrdersCount,
         cancelledOrdersCount,
+        pendingOrdersCount,
+        acceptedOrdersCount,
+        preparingOrdersCount,
+        readyOrdersCount,
+        pickedUpOrdersCount,
+        deliveredOrdersCount,
+        delayedOrdersCount,
+        kitchenQueueCount,
+        waiterQueueCount,
         averageOrderValue,
         occupiedTablesCount,
         availableTablesCount,
+        totalCustomersToday,
         topSellingFood,
         hourlyOrders,
         paymentMethods,
-        liveActivity
+        totalCouponsUsed,
+        totalCouponDiscount,
+        liveActivity,
+        recentOrders
       }
     };
   } catch (error: any) {

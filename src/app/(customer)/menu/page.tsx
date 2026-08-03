@@ -264,7 +264,14 @@ export default function MenuPage() {
   // Real-time Socket Updates for Customer SPA
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, { autoConnect: true, reconnectionAttempts: 3, timeout: 2000 });
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    });
 
     const handleOrderUpdate = (updatedOrder: any) => {
       if (!updatedOrder || !updatedOrder.id) return;
@@ -272,11 +279,6 @@ export default function MenuPage() {
       setSessionOrders((prevOrders) => {
         const exists = prevOrders.find(o => o.id === updatedOrder.id);
         if (exists) {
-          if (updatedOrder.updatedAt && exists.updatedAt) {
-            const incomingTime = new Date(updatedOrder.updatedAt).getTime();
-            const existingTime = new Date(exists.updatedAt).getTime();
-            if (incomingTime < existingTime) return prevOrders;
-          }
           return prevOrders.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
         } else {
           if (updatedOrder.tableId === tableId) {

@@ -282,7 +282,18 @@ export default function WaiterDashboard() {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
     console.log("[Waiter Console] Socket connecting:", socketUrl);
     
-    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000 });
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+      auth: {
+        role: "WAITER",
+        branchId: session?.user?.branchId || null,
+      },
+    });
     socketRef.current = socket;
 
     socket.on("connect", () => {

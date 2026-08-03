@@ -171,7 +171,13 @@ export default function OrderStatusPage() {
 
     // Realtime Socket.IO listener for instant status updates
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000,
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
       auth: {
         role: "CUSTOMER",
       },
@@ -190,11 +196,6 @@ export default function OrderStatusPage() {
       
       setOrder((prev) => {
         if (!prev) return prev;
-        if (updatedData.updatedAt && prev.updatedAt) {
-          if (new Date(updatedData.updatedAt).getTime() < new Date(prev.updatedAt).getTime()) {
-            return prev;
-          }
-        }
         return { ...prev, ...updatedData };
       });
     };

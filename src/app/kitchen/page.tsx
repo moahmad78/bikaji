@@ -349,7 +349,13 @@ export default function KitchenPage() {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
     console.log("[KDS] Connecting to Socket server:", socketUrl);
     
-    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000,
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
       auth: {
         role: "KITCHEN",
         branchId: session?.user?.branchId || null,
@@ -391,14 +397,6 @@ export default function KitchenPage() {
         }
         return prev.map(o => {
           if (o.id === updatedOrder.id) {
-            // Prevent older socket events from overwriting newer local/optimistic state
-            const currentUpdate = new Date(o.updatedAt || 0).getTime();
-            const incomingUpdate = new Date(updatedOrder.updatedAt || 0).getTime();
-            
-            // Allow optimistic local updates (which set updatedAt just now) to take precedence over delayed socket events
-            if (currentUpdate > incomingUpdate) {
-              return o;
-            }
             return { ...o, ...updatedOrder };
           }
           return o;

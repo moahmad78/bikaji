@@ -87,7 +87,14 @@ export default function AdminOrdersPage() {
   // Real-time socket sync
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000 });
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    });
 
     socket.on("connect", () => {
       socket.emit("admin-connected");

@@ -55,7 +55,14 @@ export default function AdminDashboardHome() {
   // Real-time socket sync
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000 });
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    });
 
     socket.on("connect", () => {
       socket.emit("admin-connected");
@@ -65,17 +72,17 @@ export default function AdminDashboardHome() {
       fetchDashboardStats();
     };
 
-    socket.on("customer-request", handleEventTrigger);
-    socket.on("order-new", handleEventTrigger);
-    socket.on("order-accepted", handleEventTrigger);
-    socket.on("order-preparing", handleEventTrigger);
-    socket.on("order-ready", handleEventTrigger);
-    socket.on("order-served", handleEventTrigger);
-    socket.on("order-completed", handleEventTrigger);
-    socket.on("payment-completed", handleEventTrigger);
-    socket.on("table-closed", handleEventTrigger);
+    const events = [
+      "ORDER_CREATED", "ORDER_ACCEPTED", "ORDER_COOKING", "ORDER_READY",
+      "ORDER_PICKED_UP", "ORDER_DELIVERED", "ORDER_COMPLETED", "ORDER_CANCELLED",
+      "ORDER_DELAYED", "ORDER_UPDATED", "PAYMENT_COMPLETED", "TABLE_CLOSED",
+      "SERVICE_REQUEST", "REQUEST_RESOLVED", "customer-request", "order-new"
+    ];
+
+    events.forEach(evt => socket.on(evt, handleEventTrigger));
 
     return () => {
+      events.forEach(evt => socket.off(evt, handleEventTrigger));
       socket.disconnect();
     };
   }, []);
@@ -90,11 +97,11 @@ export default function AdminDashboardHome() {
     const height = 150;
     const padding = 15;
     
-    const maxVal = Math.max(...hours.map((h: any) => h.count * 150)) || 100;
+    const maxVal = Math.max(...hours.map((h: any) => h.revenue || (h.count * 150))) || 100;
     
     const points = hours.map((h: any, i: number) => {
       const x = padding + (i / 23) * (width - padding * 2);
-      const val = h.count * 150; // Mock calculation based on quantity
+      const val = h.revenue || (h.count * 150);
       const y = height - padding - (val / maxVal) * (height - padding * 2);
       return { x, y };
     });
