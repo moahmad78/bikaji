@@ -3,6 +3,16 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import db from "./db";
 
 export const auth = betterAuth({
+  trustedOrigins: [
+    "https://bikaji-xi.vercel.app", 
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  ],
+  advanced: {
+    defaultCookieAttributes: {
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    }
+  },
   database: prismaAdapter(db, {
     provider: "postgresql",
   }),
