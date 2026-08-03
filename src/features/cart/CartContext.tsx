@@ -102,10 +102,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedTableNum = localStorage.getItem("bikaji_table_number");
     const savedBranchId = localStorage.getItem("bikaji_branch_id");
     
-    if (savedCart) setCartItems(JSON.parse(savedCart));
-    if (savedTableId) setTableId(savedTableId);
-    if (savedTableNum) setTableNumber(parseInt(savedTableNum, 10));
-    if (savedBranchId) setBranchId(savedBranchId);
+    if (savedCart) {
+      const parsedCart = JSON.parse(savedCart);
+      const sanitizedCart = parsedCart.map((item: any) => ({
+        ...item,
+        image: item.image?.includes("unsplash.com") ? "/item.png" : item.image
+      }));
+      setCartItems(sanitizedCart);
+    }
+    if (savedTableId === "demo-table-id" || savedBranchId === "demo-branch-id") {
+      localStorage.removeItem("bikaji_table_id");
+      localStorage.removeItem("bikaji_table_number");
+      localStorage.removeItem("bikaji_branch_id");
+    } else {
+      if (savedTableId) setTableId(savedTableId);
+      if (savedTableNum) setTableNumber(parseInt(savedTableNum, 10));
+      if (savedBranchId) setBranchId(savedBranchId);
+    }
   }, []);
 
   // Save cart changes to localStorage

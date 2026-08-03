@@ -6,7 +6,7 @@ async function cleanupDemoMenu() {
   console.log("🧹 Cleaning up old demo categories and menu items...");
 
   // Valid main categories created from official user lists
-  const validCategoryNames = ["SNACKS & MEALS", "SWEETS", "PACKED NAMKEENS"];
+  const validCategoryNames = ["SNACKS & MEALS", "SWEETS", "PACKED NAMKEENS", "BENGALI SWEETS"];
 
   // Find all categories not in the valid list
   const demoCategories = await prisma.category.findMany({

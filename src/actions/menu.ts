@@ -4,8 +4,15 @@ import db from "@/lib/db";
 
 export async function getMenuData(branchId?: string | null) {
   try {
-    // Resolve active branch if not explicitly provided
     let activeBranchId = branchId;
+
+    if (activeBranchId) {
+      const branchExists = await db.branch.findUnique({ where: { id: activeBranchId } });
+      if (!branchExists) {
+        activeBranchId = null;
+      }
+    }
+
     if (!activeBranchId) {
       const defaultBranch = await db.branch.findFirst();
       if (!defaultBranch) {

@@ -187,12 +187,13 @@ export default function MenuPage() {
     ord.items.forEach((item: any) => {
       const qty = item.quantity || 1;
       for (let i = 0; i < qty; i++) {
+        const itemImg = item.image || item.menuItem?.image || "/logo.png";
         addToCart({
           menuItemId: item.menuItemId || item.id,
           name: item.name,
           price: item.price,
           isVeg: item.isVeg ?? true,
-          image: item.image || item.menuItem?.image || "/logo.png",
+          image: itemImg.includes("unsplash.com") ? "/item.png" : itemImg,
         });
       }
       addedCount += qty;
@@ -344,7 +345,11 @@ export default function MenuPage() {
           }
         });
       } else if (queryTableNum && !tableId) {
-        setTable("demo-table-id", parseInt(queryTableNum) || 1, "demo-branch-id");
+        getTableDetails(queryTableNum).then((res) => {
+          if (res.success && res.table) {
+            setTable(res.table.id, res.table.number, res.table.branchId);
+          }
+        });
       }
     }
   }, [tableId, setTable]);

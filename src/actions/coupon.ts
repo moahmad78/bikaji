@@ -5,6 +5,12 @@ import db from "@/lib/db";
 export async function validateCoupon(code: string, subtotal: number, branchId?: string | null) {
   try {
     let activeBranchId = branchId;
+    if (activeBranchId) {
+      const branchExists = await db.branch.findUnique({ where: { id: activeBranchId } });
+      if (!branchExists) {
+        activeBranchId = null;
+      }
+    }
     if (!activeBranchId) {
       const defaultBranch = await db.branch.findFirst();
       activeBranchId = defaultBranch?.id || null;
@@ -55,6 +61,12 @@ export async function validateCoupon(code: string, subtotal: number, branchId?: 
 export async function getAvailableCoupons(branchId?: string | null) {
   try {
     let activeBranchId = branchId;
+    if (activeBranchId) {
+      const branchExists = await db.branch.findUnique({ where: { id: activeBranchId } });
+      if (!branchExists) {
+        activeBranchId = null;
+      }
+    }
     if (!activeBranchId) {
       const defaultBranch = await db.branch.findFirst();
       activeBranchId = defaultBranch?.id || null;

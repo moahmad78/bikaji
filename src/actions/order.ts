@@ -47,146 +47,197 @@ export async function submitOrder(input: SubmitOrderInput) {
       return { success: false, error: "Your cart is empty." };
     }
 
-    // Execute order creation in a single transaction
-    const result = await db.$transaction(async (tx) => {
-      // 1. Fetch table details
-      const table = await tx.restaurantTable.findUnique({
-        where: { id: tableId },
+    // --- PRE-FETCH & VALIDATIONS (OUTSIDE TRANSACTION) ---
+
+    // 1. Fetch table details
+    const table = await db.restaurantTable.findUnique({
+      where: { id: tableId },
+    });
+
+    if (!table) {
+      return { success: false, error: "Table not found." };
+    }
+
+    const targetBranchId = branchId || table.branchId;
+
+    // 2. Fetch active restaurant settings (for tax rates)
+    const settings = await db.restaurantSetting.findFirst();
+    const gstRate = settings?.gstRate ?? 5.0;
+    const serviceChargeRate = settings?.serviceChargeRate ?? 5.0;
+
+    // 3. Batch-fetch and validate MenuItems, Modifiers, Addons
+    const inputMenuItemIds = cartItems.map((i) => i.menuItemId);
+    const dbMenuItems = await db.menuItem.findMany({
+      where: { id: { in: inputMenuItemIds } },
+    });
+    const dbMenuItemMap = new Map(dbMenuItems.map((m) => [m.id, m]));
+
+    const allModifierIds = cartItems.flatMap((i) => (i.selectedModifiers || []).map((m) => m.id));
+    const allAddonIds = cartItems.flatMap((i) => (i.selectedAddons || []).map((a) => a.id));
+
+    const dbModifiers = allModifierIds.length > 0
+      ? await db.modifier.findMany({ where: { id: { in: allModifierIds } } })
+      : [];
+    const dbAddons = allAddonIds.length > 0
+      ? await db.addon.findMany({ where: { id: { in: allAddonIds } } })
+      : [];
+
+    const dbModifierMap = new Map(dbModifiers.map((m) => [m.id, m]));
+    const dbAddonMap = new Map(dbAddons.map((a) => [a.id, a]));
+
+    interface PreparedItem {
+      resolvedMenuItemId: string;
+      name: string;
+      price: number;
+      quantity: number;
+      specialNotes: string | null;
+      validModifiers: SelectedModifierInput[];
+      validAddons: SelectedAddonInput[];
+    }
+
+    const preparedItems: PreparedItem[] = [];
+    for (const item of cartItems) {
+      let menuItem: any = dbMenuItemMap.get(item.menuItemId) || null;
+      let resolvedMenuItemId = item.menuItemId;
+
+      // Fallback auto-heal by name if ID was from a stale cart session
+      if (!menuItem && item.name) {
+        menuItem = await db.menuItem.findFirst({
+          where: { name: item.name, deletedAt: null },
+        });
+        if (menuItem) {
+          resolvedMenuItemId = menuItem.id;
+        }
+      }
+
+      if (!menuItem) {
+        return {
+          success: false,
+          error: `Item "${item.name}" is no longer available. Please clear your cart and select items from the active menu.`,
+        };
+      }
+
+      const validModifiers = (item.selectedModifiers || []).filter((m) => dbModifierMap.has(m.id));
+      const validAddons = (item.selectedAddons || []).filter((a) => dbAddonMap.has(a.id));
+
+      preparedItems.push({
+        resolvedMenuItemId,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        specialNotes: item.specialNotes || null,
+        validModifiers,
+        validAddons,
+      });
+    }
+
+    // 4. Calculate financial details
+    let subtotal = 0;
+    for (const item of preparedItems) {
+      const modifiersTotal = item.validModifiers.reduce((s, m) => s + m.price, 0);
+      const addonsTotal = item.validAddons.reduce((s, a) => s + a.price, 0);
+      const priceWithCustomizations = item.price + modifiersTotal + addonsTotal;
+      subtotal += priceWithCustomizations * item.quantity;
+    }
+
+    let discount = 0;
+    if (couponCode) {
+      const coupon = await db.coupon.findUnique({
+        where: {
+          branchId_code: {
+            branchId: targetBranchId,
+            code: couponCode.toUpperCase().trim(),
+          },
+        },
       });
 
-      if (!table) {
-        throw new Error("Table not found.");
+      if (coupon && coupon.isActive && subtotal >= coupon.minOrderAmount) {
+        if (!coupon.expiresAt || coupon.expiresAt > new Date()) {
+          discount = (subtotal * coupon.discountPercent) / 100;
+          if (coupon.maxDiscount && discount > coupon.maxDiscount) {
+            discount = coupon.maxDiscount;
+          }
+        }
       }
+    }
 
-      // Resolve branchId (from table if not explicitly provided)
-      const targetBranchId = branchId || table.branchId;
+    const netAmount = Math.max(0, subtotal - discount);
+    const gstAmount = parseFloat(((netAmount * gstRate) / 100).toFixed(2));
+    const serviceChargeAmount = parseFloat(((netAmount * serviceChargeRate) / 100).toFixed(2));
+    const finalAmount = parseFloat((netAmount + gstAmount + serviceChargeAmount).toFixed(2));
 
-      // 2. Fetch active restaurant settings (for tax rates)
-      const settings = await tx.restaurantSetting.findFirst();
-      const gstRate = settings?.gstRate ?? 5.0;
-      const serviceChargeRate = settings?.serviceChargeRate ?? 5.0;
+    const paymentStatus = paymentMethod === PaymentMethod.PAY_LATER 
+      ? PaymentStatus.PAY_LATER 
+      : PaymentStatus.PENDING;
 
-      // 3. Calculate financial details (including customization prices)
-      let subtotal = 0;
-      for (const item of cartItems) {
-        const modifiersTotal = (item.selectedModifiers || []).reduce((s, m) => s + m.price, 0);
-        const addonsTotal = (item.selectedAddons || []).reduce((s, a) => s + a.price, 0);
-        const priceWithCustomizations = item.price + modifiersTotal + addonsTotal;
-        subtotal += priceWithCustomizations * item.quantity;
-      }
+    // --- ATOMIC DATABASE TRANSACTION (FAST WRITES ONLY) ---
+    const result = await db.$transaction(
+      async (tx) => {
+        // Generate sequential order number scoped by branch
+        const orderCount = await tx.order.count({
+          where: { branchId: targetBranchId },
+        });
+        const nextOrderNumber = `BK-${1001 + orderCount}`;
 
-      // Verify and validate coupon code on the server side
-      let discount = 0;
-      if (couponCode) {
-        const coupon = await tx.coupon.findUnique({
-          where: {
-            branchId_code: {
-              branchId: targetBranchId,
-              code: couponCode.toUpperCase().trim(),
+        // Create main Order + OrderItems + Modifiers + Addons in a single atomic nested query
+        const newOrder = await tx.order.create({
+          data: {
+            branchId: targetBranchId,
+            orderNumber: nextOrderNumber,
+            tableId,
+            customerName: customerName || "Guest",
+            status: OrderStatus.PENDING,
+            paymentStatus,
+            paymentMethod,
+            totalAmount: subtotal,
+            gstAmount,
+            serviceCharge: serviceChargeAmount,
+            discountAmount: discount,
+            finalAmount,
+            specialNotes,
+            items: {
+              create: preparedItems.map((item: PreparedItem) => ({
+                menuItemId: item.resolvedMenuItemId,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                specialNotes: item.specialNotes,
+                modifiers: item.validModifiers.length > 0 ? {
+                  create: item.validModifiers.map((m: SelectedModifierInput) => ({
+                    modifierId: m.id,
+                    name: m.name,
+                    price: m.price,
+                  })),
+                } : undefined,
+                addons: item.validAddons.length > 0 ? {
+                  create: item.validAddons.map((a: SelectedAddonInput) => ({
+                    addonId: a.id,
+                    name: a.name,
+                    price: a.price,
+                  })),
+                } : undefined,
+              })),
             },
           },
         });
 
-        if (coupon && coupon.isActive && subtotal >= coupon.minOrderAmount) {
-          if (!coupon.expiresAt || coupon.expiresAt > new Date()) {
-            discount = (subtotal * coupon.discountPercent) / 100;
-            if (coupon.maxDiscount && discount > coupon.maxDiscount) {
-              discount = coupon.maxDiscount;
-            }
-          }
-        }
-      }
-
-      const netAmount = Math.max(0, subtotal - discount);
-      const gstAmount = parseFloat(((netAmount * gstRate) / 100).toFixed(2));
-      const serviceChargeAmount = parseFloat(((netAmount * serviceChargeRate) / 100).toFixed(2));
-      const finalAmount = parseFloat((netAmount + gstAmount + serviceChargeAmount).toFixed(2));
-
-      // 4. Generate sequential order number scoped by branch
-      const orderCount = await tx.order.count({
-        where: { branchId: targetBranchId },
-      });
-      const nextOrderNumber = `BK-${1001 + orderCount}`;
-
-      // 5. Determine default payment status
-      const paymentStatus = paymentMethod === PaymentMethod.PAY_LATER 
-        ? PaymentStatus.PAY_LATER 
-        : PaymentStatus.PENDING;
-
-      // 6. Create the main Order
-      const newOrder = await tx.order.create({
-        data: {
-          branchId: targetBranchId,
-          orderNumber: nextOrderNumber,
-          tableId,
-          customerName: customerName || "Guest",
-          status: OrderStatus.PENDING, // Changed from RECEIVED to PENDING per new schema design enums
-          paymentStatus,
-          paymentMethod,
-          totalAmount: subtotal,
-          gstAmount,
-          serviceCharge: serviceChargeAmount,
-          discountAmount: discount,
-          finalAmount,
-          specialNotes,
-        },
-      });
-
-      // 7. Create OrderItems + Modifiers + Addons
-      for (const item of cartItems) {
-        const newOrderItem = await tx.orderItem.create({
-          data: {
-            orderId: newOrder.id,
-            menuItemId: item.menuItemId,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            specialNotes: item.specialNotes || null,
-          },
-        });
-
-        // Add selected modifiers
-        if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-          const modPromises = item.selectedModifiers.map((mod) =>
-            tx.orderItemModifier.create({
-              data: {
-                orderItemId: newOrderItem.id,
-                modifierId: mod.id,
-                name: mod.name,
-                price: mod.price,
-              },
-            })
-          );
-          await Promise.all(modPromises);
+        // Update table status to OCCUPIED if it was FREE
+        if (table.status === TableStatus.FREE) {
+          await tx.restaurantTable.update({
+            where: { id: tableId },
+            data: { status: TableStatus.OCCUPIED },
+          });
         }
 
-        // Add selected addons
-        if (item.selectedAddons && item.selectedAddons.length > 0) {
-          const addPromises = item.selectedAddons.map((addon) =>
-            tx.orderItemAddon.create({
-              data: {
-                orderItemId: newOrderItem.id,
-                addonId: addon.id,
-                name: addon.name,
-                price: addon.price,
-              },
-            })
-          );
-          await Promise.all(addPromises);
-        }
+        return newOrder;
+      },
+      {
+        maxWait: 10000,
+        timeout: 20000,
       }
+    );
 
-      // 8. Update table status to OCCUPIED if it was FREE
-      if (table.status === TableStatus.FREE) {
-        await tx.restaurantTable.update({
-          where: { id: tableId },
-          data: { status: TableStatus.OCCUPIED },
-        });
-      }
-
-      return newOrder;
-    });
-
+    // --- POST-TRANSACTION SIDE EFFECTS (OUTSIDE TRANSACTION) ---
     if (result) {
       try {
         const fullOrderRes = await getOrderDetails(result.id);
@@ -198,9 +249,13 @@ export async function submitOrder(input: SubmitOrderInput) {
       }
     }
 
-    revalidatePath("/kitchen");
-    revalidatePath("/waiter");
-    revalidatePath("/admin");
+    try {
+      revalidatePath("/kitchen");
+      revalidatePath("/waiter");
+      revalidatePath("/admin");
+    } catch (revalErr) {
+      // Safely ignore revalidatePath when invoked outside Next.js HTTP server context
+    }
 
     return { success: true, orderId: result.id, orderNumber: result.orderNumber };
   } catch (error: any) {

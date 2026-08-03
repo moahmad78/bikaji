@@ -483,7 +483,7 @@ export async function upsertAdminMenuItem(data: {
       isNonVeg: !data.isVeg,
       isBestseller: data.isBestseller,
       isSpecial: data.isSpecial,
-      image: data.image || "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80"
+      image: data.image || "/item.png"
     };
 
     let item;
