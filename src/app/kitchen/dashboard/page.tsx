@@ -95,7 +95,7 @@ export default function KitchenDashboardPage() {
   // Real-time socket updates: whenever order states transition, reload dashboard metrics
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000 });
     socketRef.current = socket;
 
     socket.on("connect", () => {

@@ -349,7 +349,7 @@ export default function KitchenPage() {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
     console.log("[KDS] Connecting to Socket server:", socketUrl);
     
-    const socket = io(socketUrl, {
+    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000,
       auth: {
         role: "KITCHEN",
         branchId: session?.user?.branchId || null,

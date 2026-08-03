@@ -171,7 +171,7 @@ export default function OrderStatusPage() {
 
     // Realtime Socket.IO listener for instant status updates
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, {
+    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000,
       auth: {
         role: "CUSTOMER",
       },

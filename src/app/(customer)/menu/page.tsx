@@ -263,7 +263,7 @@ export default function MenuPage() {
   // Real-time Socket Updates for Customer SPA
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, { autoConnect: true });
+    const socket = io(socketUrl, { autoConnect: true, reconnectionAttempts: 3, timeout: 2000 });
 
     const handleOrderUpdate = (updatedOrder: any) => {
       if (!updatedOrder || !updatedOrder.id) return;
