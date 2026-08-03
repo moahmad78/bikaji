@@ -50,13 +50,7 @@ export default function Home() {
       {/* Header */}
       <header className="w-full max-w-6xl mx-auto flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-premium overflow-hidden border border-gold-500/30 bg-white">
-            <Image src="/logo.png" alt="Bikaji Logo" width={40} height={40} className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <span className="font-display font-bold text-xl tracking-tight text-primary">BIKAJI</span>
-            <span className="text-[10px] block tracking-widest text-accent font-semibold uppercase">Smart QR Dining</span>
-          </div>
+          <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
         </div>
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-secondary border border-border text-xs text-muted-foreground">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

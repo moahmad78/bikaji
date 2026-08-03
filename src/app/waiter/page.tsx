@@ -646,10 +646,9 @@ export default function WaiterDashboard() {
 
         <div className="w-full max-w-md bg-[#1c0f11] border border-[#361f22] rounded-xl p-8 shadow-large z-10">
           <div className="flex flex-col items-center text-center gap-2 mb-8">
-            <div className="w-14 h-14 rounded-premium overflow-hidden border border-gold-500/30 bg-white">
-              <Image src="/logo.png" alt="Bikaji Logo" width={56} height={56} className="w-full h-full object-contain" />
+            <div className="flex justify-center mb-2">
+              <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mt-2">BIKAJI WAITER PORTAL</h1>
             <p className="text-xs text-zinc-450 uppercase tracking-widest font-semibold font-sans">
               Enter credentials to sign in
             </p>
@@ -735,12 +734,9 @@ export default function WaiterDashboard() {
       <header className="bg-[#1a0f11] border-b border-[#361f22] px-4 sm:px-6 py-3.5 shadow-large sticky top-0 z-30">
         <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-premium overflow-hidden border border-gold-500/20 shadow-md bg-white">
-              <Image src="/logo.png" alt="Bikaji Logo" width={40} height={40} className="w-full h-full object-contain" />
-            </div>
+            <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-display font-extrabold text-sm tracking-tight text-white">WAITER PORTAL</span>
                 <span className={`text-[8px] border px-2 py-0.5 rounded font-extrabold uppercase tracking-wide ${
                   socketConnected ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400 animate-pulse"
                 }`}>

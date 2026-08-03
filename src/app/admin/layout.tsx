@@ -223,10 +223,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className="w-full max-w-md bg-[#160c0d] border border-[#2d191b] rounded-2xl p-8 shadow-large z-10">
           <div className="flex flex-col items-center text-center gap-2 mb-8">
-            <div className="w-16 h-16 rounded-xl overflow-hidden border border-[#baa47f]/30 shadow-lg bg-white">
-              <Image src="/logo.png" alt="Bikaji Logo" width={64} height={64} className="w-full h-full object-contain" />
+            <div className="flex justify-center mb-2">
+              <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
             </div>
-            <h1 className="text-xl font-display font-extrabold tracking-tight text-white mt-3">BIKAJI ADMINISTRATION</h1>
             <p className="text-[10px] text-zinc-450 uppercase tracking-widest font-bold">
               Secure Owner Access Portal
             </p>
@@ -304,18 +303,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* 1. DESKTOP SIDEBAR PANEL */}
       <aside className="hidden lg:flex flex-col w-64 bg-[#140b0c] border-r border-[#251416] shrink-0 h-screen sticky top-0 z-20">
         {/* Sidebar Header */}
-        <div className="p-6 border-b border-[#251416] flex items-center gap-3">
-          <div className="w-9 h-9 rounded-premium overflow-hidden border border-[#baa47f]/20 bg-white">
-            <Image src="/logo.png" alt="Bikaji Logo" width={36} height={36} className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <h2 className="font-display font-extrabold text-xs tracking-tight text-white uppercase">
-              BIKAJI ADMIN
-            </h2>
-            <span className="text-[9px] text-zinc-550 block font-bold uppercase tracking-wider mt-0.5">
-              Enterprise Suite
-            </span>
-          </div>
+        <div className="p-6 border-b border-[#251416] flex items-center">
+          <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
         </div>
 
         {/* Sidebar Navigation */}
@@ -495,18 +484,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <X className="w-4 h-4" />
               </button>
 
-              <div className="p-6 border-b border-[#251416] flex items-center gap-3">
-                <div className="w-8 h-8 rounded overflow-hidden border border-[#baa47f]/20 bg-white">
-                  <Image src="/logo.png" alt="Bikaji Logo" width={32} height={32} className="w-full h-full object-contain" />
-                </div>
-                <div>
-                  <h2 className="font-display font-extrabold text-xs tracking-tight text-white uppercase">
-                    BIKAJI ADMIN
-                  </h2>
-                  <span className="text-[8px] text-zinc-550 block font-bold uppercase tracking-wider mt-0.5">
-                    Restaurant Control
-                  </span>
-                </div>
+              <div className="p-6 border-b border-[#251416] flex items-center">
+                <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
               </div>
 
               <nav className="flex-1 px-4 py-6 flex flex-col gap-1.5 overflow-y-auto">

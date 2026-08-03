@@ -860,10 +860,9 @@ export default function KitchenPage() {
 
         <div className="w-full max-w-md bg-[#160c0d] border border-[#2d191b] rounded-xl p-8 shadow-large z-10">
           <div className="flex flex-col items-center text-center gap-2 mb-8">
-            <div className="w-14 h-14 rounded-premium overflow-hidden border border-gold-500/30 bg-white">
-              <Image src="/logo.png" alt="Bikaji Logo" width={56} height={56} className="w-full h-full object-contain" />
+            <div className="flex justify-center mb-2">
+              <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mt-2">BIKAJI KITCHEN PORTAL</h1>
             <p className="text-xs text-zinc-450 uppercase tracking-widest font-semibold font-sans">
               Enter credentials to sign in
             </p>
@@ -947,12 +946,9 @@ export default function KitchenPage() {
       {/* KDS Header */}
       <header className="bg-[#1a0f11] border-b border-[#361f22] sticky top-0 z-30 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-large">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-premium overflow-hidden border border-gold-500/20 shadow-md bg-white">
-            <Image src="/logo.png" alt="Bikaji Logo" width={40} height={40} className="w-full h-full object-contain" />
-          </div>
+          <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-extrabold text-lg tracking-tight text-white">BIKAJI KITCHEN</span>
               <span className="text-[10px] bg-gold-600/20 text-gold-400 border border-gold-600/30 px-2 py-0.5 rounded font-extrabold uppercase tracking-wide">
                 KDS Monitor
               </span>

@@ -100,10 +100,12 @@ export default function MenuPage() {
     cartItems,
     addToCart,
     updateQuantity,
+    updateSpecialNotes,
     clearCart,
     appliedCoupon,
     applyCoupon,
     specialInstructions,
+    setSpecialInstructions,
     subtotal,
     discount,
     gstAmount,
@@ -136,6 +138,25 @@ export default function MenuPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.UPI);
   const [submittingOrder, setSubmittingOrder] = useState<boolean>(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  // Cart Customizations & Animation State
+  const [kitchenChips, setKitchenChips] = useState<string[]>([]);
+  const [expandedCustomizeItem, setExpandedCustomizeItem] = useState<string | null>(null);
+  const [orderSuccessState, setOrderSuccessState] = useState<"idle" | "submitting" | "success">("idle");
+  const [successOrderNumber, setSuccessOrderNumber] = useState<string>("");
+  
+  const KITCHEN_CHIPS_OPTIONS = [
+    { label: "Less Spicy", icon: "🌶" },
+    { label: "No Onion", icon: "🧅" },
+    { label: "Less Oil", icon: "🥄" },
+    { label: "Extra Plates", icon: "🍽" },
+    { label: "Extra Glass", icon: "🥤" },
+    { label: "Extra Napkins", icon: "🧻" },
+    { label: "Extra Spoon", icon: "🥄" },
+    { label: "Extra Cutlery", icon: "🍴" },
+    { label: "Lemon Required", icon: "🍋" },
+    { label: "Make it Hot", icon: "🔥" },
+  ];
 
   // Coupon State
   const [couponCode, setCouponCode] = useState<string>("");
@@ -414,8 +435,15 @@ export default function MenuPage() {
   const handlePlaceOrder = async () => {
     if (!tableId) return;
     if (cartItems.length === 0) return;
+    
+    setOrderSuccessState("submitting");
     setSubmittingOrder(true);
     setOrderError(null);
+
+    const combinedSpecialNotes = [
+      kitchenChips.length > 0 ? `Tags: ${kitchenChips.join(", ")}` : "",
+      specialInstructions.trim()
+    ].filter(Boolean).join(" | ");
 
     const orderInput = {
       tableId,
@@ -430,7 +458,7 @@ export default function MenuPage() {
         selectedModifiers: ci.selectedModifiers || [],
         selectedAddons: ci.selectedAddons || [],
       })),
-      specialNotes: specialInstructions.trim() || undefined,
+      specialNotes: combinedSpecialNotes || undefined,
       couponCode: appliedCoupon ? appliedCoupon.code : undefined,
       paymentMethod,
     };
@@ -438,17 +466,19 @@ export default function MenuPage() {
     try {
       const res = await submitOrder(orderInput);
       if (res.success && res.orderId) {
-        addToast("Order placed successfully! Kitchen is preparing your food.", "success");
+        setSuccessOrderNumber(res.orderNumber?.toString() || res.orderId.substring(0,6));
+        setOrderSuccessState("success");
         clearCart();
-        setCartOpen(false);
-        setActiveTab("orders");
+        setKitchenChips([]);
         loadSessionOrders();
       } else {
         setOrderError(res.error || "Something went wrong while placing your order.");
+        setOrderSuccessState("idle");
       }
     } catch (err) {
       console.error(err);
       setOrderError("Unable to place order. Connection failed.");
+      setOrderSuccessState("idle");
     } finally {
       setSubmittingOrder(false);
     }
@@ -524,13 +554,11 @@ export default function MenuPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b0506] text-white flex flex-col items-center justify-center p-6">
-        <div className="relative w-16 h-16 mb-4 flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full border-2 border-[#baa47f]/20 border-t-[#baa47f] animate-spin" />
-          <Image src="/logo.png" alt="Bikaji" width={36} height={36} className="object-contain" />
-        </div>
+      <div className="min-h-screen bg-[#0b0506] text-white flex flex-col items-center justify-center p-6 gap-6">
+        <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
+        <div className="w-8 h-8 rounded-full border-2 border-[#baa47f]/20 border-t-[#baa47f] animate-spin" />
         <p className="font-display text-sm font-semibold text-[#baa47f] tracking-widest uppercase animate-pulse">
-          Preparing Bikaji Digital Menu...
+          Preparing Digital Menu...
         </p>
       </div>
     );
@@ -605,16 +633,8 @@ export default function MenuPage() {
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           {/* Logo & Table Badge */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/5 border border-[#baa47f]/30 p-1 flex items-center justify-center shrink-0 shadow-inner">
-              <Image src="/logo.png" alt="Bikaji Logo" width={36} height={36} className="w-full h-full object-contain" />
-            </div>
+            <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-display font-extrabold text-base tracking-tight text-[#baa47f]">BIKAJI</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#800020]/60 text-amber-300 font-bold border border-[#baa47f]/30 uppercase tracking-widest">
-                  DINING
-                </span>
-              </div>
               {tableNumber ? (
                 <p className="text-[11px] text-zinc-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -1195,56 +1215,289 @@ export default function MenuPage() {
 
         {/* 3. 🛒 CART TAB */}
         {activeTab === "cart" && (
-          <div className="flex flex-col gap-6 max-w-xl mx-auto w-full bg-zinc-900/90 p-6 rounded-2xl border border-[#baa47f]/30 text-white shadow-xl">
-            <h3 className="font-display font-extrabold text-base text-[#baa47f]">Your Order Cart</h3>
-            {cartItems.length === 0 ? (
-              <div className="py-12 text-center flex flex-col items-center gap-3">
-                <ShoppingBag className="w-12 h-12 text-zinc-700" />
-                <p className="text-sm font-bold text-zinc-400">Your cart is empty.</p>
-                <button onClick={() => setActiveTab("menu")} className="px-6 py-2.5 bg-[#800020] text-white text-xs font-bold uppercase rounded-xl border border-[#baa47f]/40 cursor-pointer">
-                  Browse Menu
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col gap-3">
-                  {cartItems.map((ci) => (
-                    <div key={ci.cartItemId} className="p-3.5 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between">
-                      <div>
-                        <h4 className="font-bold text-xs text-white">{ci.name}</h4>
-                        <span className="text-[11px] text-[#baa47f]">₹{ci.price} x {ci.quantity}</span>
+          <div className="flex flex-col max-w-2xl mx-auto w-full mb-24 relative">
+            <AnimatePresence mode="wait">
+              {orderSuccessState === "submitting" && (
+                <motion.div
+                  key="submitting"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.05 }}
+                  className="bg-zinc-900/90 border border-[#baa47f]/30 p-12 rounded-3xl text-center shadow-2xl flex flex-col items-center gap-6"
+                >
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-4 border-zinc-800" />
+                    <div className="absolute inset-0 rounded-full border-4 border-[#baa47f] border-t-transparent animate-spin" />
+                    <Utensils className="w-8 h-8 text-amber-400 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-2xl font-extrabold text-white">Sending to Kitchen</h3>
+                    <p className="text-zinc-400 text-sm mt-2">Preparing your digital order ticket...</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {orderSuccessState === "success" && (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -30 }}
+                  className="bg-zinc-900/90 border border-emerald-500/30 p-8 rounded-3xl text-center shadow-2xl flex flex-col items-center gap-6 relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-bl-[100px]" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-500/10 rounded-tr-[100px]" />
+                  
+                  <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center border-4 border-emerald-500/40 relative z-10">
+                    <Check className="w-10 h-10 text-emerald-400 stroke-[3]" />
+                  </div>
+                  
+                  <div className="relative z-10">
+                    <h3 className="font-display text-3xl font-extrabold text-white mb-2">Order Placed!</h3>
+                    <p className="text-zinc-300 text-sm">Your order has been sent to the kitchen.</p>
+                    
+                    <div className="mt-6 bg-zinc-950 border border-zinc-800 rounded-2xl p-4 inline-flex flex-col gap-1 items-center">
+                      <span className="text-[10px] uppercase font-bold tracking-widest text-[#baa47f]">Ticket Number</span>
+                      <span className="font-mono text-3xl font-black text-white">#{successOrderNumber}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setOrderSuccessState("idle");
+                      setActiveTab("orders");
+                    }}
+                    className="mt-4 px-8 py-4 bg-[#800020] hover:bg-[#990026] text-white font-extrabold text-sm uppercase tracking-widest rounded-xl border border-[#baa47f]/40 shadow-xl transition relative z-10"
+                  >
+                    Track My Order
+                  </button>
+                </motion.div>
+              )}
+
+              {orderSuccessState === "idle" && cartItems.length === 0 && (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-zinc-900/90 p-12 rounded-3xl border border-zinc-800 text-center flex flex-col items-center gap-4 shadow-xl"
+                >
+                  <ShoppingBag className="w-16 h-16 text-zinc-700" />
+                  <h3 className="font-display text-xl font-bold text-white">Your cart is empty</h3>
+                  <p className="text-sm text-zinc-400 mb-2">Explore our menu and add some delicious items.</p>
+                  <button onClick={() => setActiveTab("menu")} className="px-8 py-3 bg-[#800020] hover:bg-[#990026] text-white text-xs font-bold uppercase tracking-wider rounded-xl border border-[#baa47f]/40 transition">
+                    Explore Menu
+                  </button>
+                </motion.div>
+              )}
+
+              {orderSuccessState === "idle" && cartItems.length > 0 && (
+                <motion.div
+                  key="cart"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col gap-5 pb-20"
+                >
+                  {/* SECTION 1: ORDER SUMMARY */}
+                  <section className="bg-gradient-to-br from-[#1b080b] to-[#120507] p-5 rounded-2xl border border-[#baa47f]/30 shadow-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-[#baa47f] font-extrabold uppercase tracking-widest block">Review Order</span>
+                      <h3 className="text-xl font-display font-extrabold text-white mt-1">
+                        Table #{tableNumber || 1}
+                      </h3>
+                    </div>
+                    <div className="bg-black/40 px-4 py-2 rounded-xl border border-white/10 text-center">
+                      <span className="text-[10px] text-zinc-400 uppercase font-bold block">Total Items</span>
+                      <span className="font-extrabold text-white text-lg">
+                        {cartItems.reduce((acc, ci) => acc + ci.quantity, 0)}
+                      </span>
+                    </div>
+                  </section>
+
+                  {/* SECTION 2: ORDER ITEMS */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl p-4 flex flex-col gap-4">
+                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2">
+                      Order Items
+                    </h4>
+                    
+                    <div className="flex flex-col gap-4">
+                      {cartItems.map((ci) => {
+                        const isExpanded = expandedCustomizeItem === ci.cartItemId;
+                        return (
+                          <div key={ci.cartItemId} className="flex flex-col bg-zinc-950 rounded-xl border border-zinc-800/80 overflow-hidden shadow-sm">
+                            <div className="p-3 flex items-start gap-3">
+                              <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-neutral-900 shrink-0">
+                                <Image src={ci.image || "/logo.png"} alt={ci.name} fill className="object-cover" />
+                                <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-md px-1 py-0.5 rounded border border-white/10">
+                                  <span className={`block w-1.5 h-1.5 rounded-full ${ci.isVeg ? "bg-emerald-500" : "bg-rose-500"}`} />
+                                </div>
+                              </div>
+                              
+                              <div className="flex-1 flex flex-col justify-between h-full">
+                                <div>
+                                  <h5 className="font-bold text-sm text-white leading-tight">{ci.name}</h5>
+                                  <span className="text-sm font-extrabold text-[#baa47f] block mt-1">₹{ci.price}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-2 shrink-0">
+                                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1">
+                                  <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity - 1)} className="p-1 hover:text-white text-zinc-400 transition">
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="text-xs font-bold w-4 text-center text-white">{ci.quantity}</span>
+                                  <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity + 1)} className="p-1 hover:text-white text-zinc-400 transition">
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => setExpandedCustomizeItem(isExpanded ? null : ci.cartItemId)}
+                                  className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition ${isExpanded ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                                >
+                                  Customize {isExpanded ? <ChevronRight className="w-3 h-3 rotate-90" /> : <ChevronRight className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {/* Expandable Customization Section for this Item */}
+                            <AnimatePresence>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  className="border-t border-zinc-800 bg-black/40 overflow-hidden"
+                                >
+                                  <div className="p-3">
+                                    <span className="text-[10px] text-zinc-500 font-bold uppercase mb-1.5 block">Item Special Instructions</span>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Less spicy, extra cheese..."
+                                      value={ci.specialNotes || ""}
+                                      onChange={(e) => updateSpecialNotes(ci.cartItemId, e.target.value)}
+                                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#baa47f]"
+                                    />
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  {/* SECTION 3: KITCHEN INSTRUCTIONS (Global) */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl p-4 flex flex-col gap-4">
+                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2 flex items-center gap-2">
+                      <Flame className="w-4 h-4 text-amber-500" /> Kitchen Instructions
+                    </h4>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      {KITCHEN_CHIPS_OPTIONS.map((chip) => {
+                        const isSelected = kitchenChips.includes(chip.label);
+                        return (
+                          <button
+                            key={chip.label}
+                            onClick={() => {
+                              if (isSelected) {
+                                setKitchenChips(prev => prev.filter(c => c !== chip.label));
+                              } else {
+                                setKitchenChips(prev => [...prev, chip.label]);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-full border text-xs font-bold transition flex items-center gap-1.5 ${
+                              isSelected 
+                                ? "bg-[#baa47f]/20 border-[#baa47f] text-[#baa47f]" 
+                                : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            <span>{chip.icon}</span>
+                            <span>{chip.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase mb-1.5 flex justify-between">
+                        <span>Message to Kitchen</span>
+                        <span>{specialInstructions.length}/250</span>
+                      </span>
+                      <textarea
+                        value={specialInstructions}
+                        onChange={(e) => {
+                          if (e.target.value.length <= 250) {
+                            setSpecialInstructions(e.target.value);
+                          }
+                        }}
+                        placeholder="Any other specific instructions for the chef?"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#baa47f] min-h-[80px] resize-none"
+                      />
+                    </div>
+                  </section>
+
+                  {/* SECTION 4: BILL SUMMARY */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl p-5 flex flex-col gap-3">
+                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2">
+                      Bill Summary
+                    </h4>
+                    
+                    <div className="flex flex-col gap-2.5 text-xs text-zinc-300 pt-1">
+                      <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span className="font-bold text-white">₹{subtotal.toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-2 bg-[#800020] rounded-lg px-2.5 py-1">
-                        <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity - 1)}>
-                          <Minus className="w-3.5 h-3.5 text-amber-300" />
-                        </button>
-                        <span className="text-xs font-bold w-4 text-center">{ci.quantity}</span>
-                        <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity + 1)}>
-                          <Plus className="w-3.5 h-3.5 text-amber-300" />
-                        </button>
+                      
+                      {discount > 0 && (
+                        <div className="flex justify-between text-emerald-400 font-bold">
+                          <span>Discount Applied</span>
+                          <span>-₹{discount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between">
+                        <span>GST (5%)</span>
+                        <span className="font-bold text-white">₹{gstAmount.toFixed(2)}</span>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span>Service Charge (5%)</span>
+                        <span className="font-bold text-white">₹{serviceChargeAmount.toFixed(2)}</span>
+                      </div>
+                      
+                      <div className="flex justify-between text-lg font-display font-extrabold text-white pt-3 border-t border-zinc-800/80 mt-1">
+                        <span>Grand Total</span>
+                        <span className="text-amber-400 font-mono">₹{totalAmount.toFixed(2)}</span>
                       </div>
                     </div>
-                  ))}
+                  </section>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* STICKY BOTTOM ACTIONS (Only if cart has items and idle) */}
+            {orderSuccessState === "idle" && cartItems.length > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-zinc-950/90 backdrop-blur-xl border-t border-zinc-800 z-40 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                <div className="max-w-2xl mx-auto flex gap-3">
+                  <button
+                    onClick={() => setActiveTab("menu")}
+                    className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-700 transition"
+                  >
+                    Add Items
+                  </button>
+                  <button
+                    onClick={handlePlaceOrder}
+                    disabled={submittingOrder}
+                    className="flex-[2] py-3.5 bg-[#800020] hover:bg-[#990026] text-white font-extrabold text-xs uppercase tracking-widest rounded-xl border border-[#baa47f]/40 shadow-[0_0_20px_rgba(128,0,32,0.4)] transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {submittingOrder ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      <>Place Order • ₹{totalAmount.toFixed(2)}</>
+                    )}
+                  </button>
                 </div>
-
-                <div className="pt-4 border-t border-zinc-800 flex flex-col gap-2 text-xs text-zinc-300">
-                  <div className="flex justify-between"><span>Subtotal</span><span className="font-bold text-white">₹{subtotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>GST (5%)</span><span className="font-bold text-white">₹{gstAmount.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>Service Charge (5%)</span><span className="font-bold text-white">₹{serviceChargeAmount.toFixed(2)}</span></div>
-                  <div className="flex justify-between text-sm font-extrabold text-white pt-2 border-t border-zinc-800">
-                    <span>Total Amount</span>
-                    <span className="text-[#baa47f]">₹{totalAmount.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handlePlaceOrder}
-                  disabled={submittingOrder}
-                  className="w-full py-4 bg-[#800020] hover:bg-[#990026] text-white font-extrabold text-xs uppercase tracking-widest rounded-xl border border-[#baa47f]/40 shadow-xl cursor-pointer disabled:opacity-40"
-                >
-                  {submittingOrder ? "Sending Order to Kitchen..." : `Confirm & Place Order (₹${totalAmount.toFixed(2)})`}
-                </button>
-              </>
+              </div>
             )}
           </div>
         )}

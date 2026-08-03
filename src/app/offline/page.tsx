@@ -47,11 +47,8 @@ export default function OfflinePage() {
 
       {/* Header */}
       <header className="w-full max-w-md mx-auto flex items-center justify-center z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg overflow-hidden border border-[#baa47f]/30 bg-white/10 flex items-center justify-center">
-            <Image src="/logo.png" alt="Bikaji Logo" width={36} height={36} className="w-full h-full object-contain" />
-          </div>
-          <span className="font-display font-extrabold text-xl tracking-tight text-[#baa47f]">BIKAJI</span>
+        <div className="flex items-center">
+          <Image src="/logo.png" alt="Bikaji Logo" width={160} height={48} className="h-8 md:h-12 w-auto object-contain" />
         </div>
       </header>
 
