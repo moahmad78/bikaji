@@ -48,18 +48,18 @@ export async function proxy(request: NextRequest) {
 
       const role = user.role;
 
-      // Enforce specific role boundaries
+      // Enforce specific role boundaries: Redirect to entry portals if user lacks required role
       if (isAdminSubPath && !["ADMIN", "SUPER_ADMIN"].includes(role)) {
-        return NextResponse.rewrite(new URL("/api/auth/forbidden", request.url));
+        return NextResponse.redirect(new URL("/admin", request.url));
       }
       if (isKitchenSubPath && !["KITCHEN", "ADMIN", "SUPER_ADMIN"].includes(role)) {
-        return NextResponse.rewrite(new URL("/api/auth/forbidden", request.url));
+        return NextResponse.redirect(new URL("/kitchen", request.url));
       }
       if (isWaiterSubPath && !["WAITER", "ADMIN", "SUPER_ADMIN"].includes(role)) {
-        return NextResponse.rewrite(new URL("/api/auth/forbidden", request.url));
+        return NextResponse.redirect(new URL("/waiter", request.url));
       }
       if (isBillingSubPath && !["CASHIER", "ADMIN", "SUPER_ADMIN"].includes(role)) {
-        return NextResponse.rewrite(new URL("/api/auth/forbidden", request.url));
+        return NextResponse.redirect(new URL("/billing", request.url));
       }
 
     } catch (err) {

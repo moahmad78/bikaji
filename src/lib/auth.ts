@@ -2,10 +2,22 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import db from "./db";
 
+const getBaseUrl = () => {
+  if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return process.env.NODE_ENV === "production"
+    ? "https://bikaji-xi.vercel.app"
+    : "http://localhost:3000";
+};
+
 export const auth = betterAuth({
+  baseURL: getBaseUrl(),
+  secret: process.env.BETTER_AUTH_SECRET || "9e5c8c7c2f2d9d65f8d5f84a5c1a0b4a3b7e8d0c9f2e1d6b7a8c9d0e1f2a3b4",
   trustedOrigins: [
     "https://bikaji-xi.vercel.app", 
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    process.env.NEXT_PUBLIC_APP_URL || "https://bikaji-xi.vercel.app",
+    "http://localhost:3000"
   ],
   advanced: {
     defaultCookieAttributes: {
