@@ -18,17 +18,20 @@ export const authClient = createAuthClient({
       const statusText = ctx.response?.statusText;
       const url = ctx.response?.url || ctx.request?.url;
 
+      // 401 Unauthorized is normal when a user has no active session cookie
+      if (status === 401) {
+        return;
+      }
+
       let diagnostics = "Network error / CORS issue or backend server unreachable.";
-      if (status === 401) diagnostics = "401 Unauthorized: Session missing or expired.";
-      else if (status === 403) diagnostics = "403 Forbidden: Insufficient role permissions.";
+      if (status === 403) diagnostics = "403 Forbidden: Insufficient role permissions.";
       else if (status === 404) diagnostics = "404 Not Found: Authentication endpoint unavailable.";
       else if (status && status >= 500) diagnostics = `${status} Internal Server Error on Auth API.`;
 
-      console.error(`[Better Auth Diagnostic] ${diagnostics}`, {
+      console.warn(`[Better Auth Diagnostic] ${diagnostics}`, {
         url,
         status,
         statusText,
-        error: ctx.error,
       });
     },
   },

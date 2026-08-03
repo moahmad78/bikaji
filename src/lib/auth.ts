@@ -3,6 +3,11 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import db from "./db";
 
 const getAuthBaseUrl = () => {
+  // In local development, default to http://localhost:3000 unless BETTER_AUTH_URL explicitly overrides
+  if (process.env.NODE_ENV !== "production") {
+    return process.env.BETTER_AUTH_URL || "http://localhost:3000";
+  }
+  // In production (Vercel / Cloud Deployment)
   if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return process.env.NEXT_PUBLIC_APP_URL || "https://bikaji-xi.vercel.app";
