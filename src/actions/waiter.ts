@@ -3,6 +3,7 @@
 import db from "@/lib/db";
 import { OrderStatus, TableStatus, PaymentStatus, PaymentMethod, RequestStatus, Role } from "@prisma/client";
 import { publishSocketEvent } from "@/lib/socket-helper";
+import { revalidatePath } from "next/cache";
 
 // Fetch Waiter Dashboard data
 export async function getWaiterDashboardData(branchId?: string, waiterUserId?: string) {
@@ -177,7 +178,10 @@ export async function resolveServiceRequest(requestId: string) {
       }
     });
 
-    await publishSocketEvent("request-resolved", request);
+    await publishSocketEvent("REQUEST_RESOLVED", request);
+    revalidatePath("/waiter");
+    revalidatePath("/kitchen");
+    revalidatePath("/admin");
     return { success: true, request };
   } catch (error: any) {
     console.error("[Waiter Actions] Error resolving request:", error);
@@ -218,9 +222,12 @@ export async function acceptDelivery(orderId: string, waiterId: string, waiterNa
       tableNumber: updatedOrder.table.number
     };
 
-    await publishSocketEvent("order-accepted-by-waiter", payload);
-    await publishSocketEvent("WAITER_ACCEPTED", payload);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_PICKED_UP", payload);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+
+    revalidatePath("/waiter");
+    revalidatePath("/kitchen");
+    revalidatePath("/admin");
 
     return { success: true, order: updatedOrder };
   } catch (error: any) {
@@ -280,9 +287,11 @@ export async function deliverOrder(orderId: string, waiterId?: string, waiterNam
       waiterName: updatedOrder.waiterName
     };
 
-    await publishSocketEvent("order-served", updatedOrder);
-    await publishSocketEvent("ORDER_SERVED", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_DELIVERED", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/waiter");
+    revalidatePath("/kitchen");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[Waiter Actions] Error serving order:", error);
@@ -345,7 +354,10 @@ export async function processPayment(orderId: string, paymentMethod: PaymentMeth
       return { payment, order: updatedOrder };
     });
 
-    await publishSocketEvent("payment-completed", result.order);
+    await publishSocketEvent("PAYMENT_COMPLETED", result.order);
+    revalidatePath("/waiter");
+    revalidatePath("/kitchen");
+    revalidatePath("/admin");
     return { success: true, order: result.order };
   } catch (error: any) {
     console.error("[Waiter Actions] Error processing payment:", error);
@@ -379,7 +391,10 @@ export async function closeTable(tableId: string) {
       return { table, session };
     });
 
-    await publishSocketEvent("table-closed", { tableId, status: TableStatus.FREE });
+    await publishSocketEvent("TABLE_CLOSED", { tableId, status: TableStatus.FREE });
+    revalidatePath("/waiter");
+    revalidatePath("/kitchen");
+    revalidatePath("/admin");
     return { success: true, table: result.table };
   } catch (error: any) {
     console.error("[Waiter Actions] Error closing table:", error);

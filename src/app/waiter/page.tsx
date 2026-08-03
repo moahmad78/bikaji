@@ -295,7 +295,7 @@ export default function WaiterDashboard() {
     });
 
     // Event listeners
-    socket.on("customer-request", (request: any) => {
+    socket.on("SERVICE_REQUEST", (request: any) => {
       playAlertSound("new-request");
       setPendingRequests(prev => {
         if (prev.some(r => r.id === request.id)) return prev;
@@ -313,7 +313,7 @@ export default function WaiterDashboard() {
       }));
     });
 
-    socket.on("request-resolved", (request: any) => {
+    socket.on("REQUEST_RESOLVED", (request: any) => {
       setPendingRequests(prev => prev.filter(r => r.id !== request.id));
       setTables(prev => prev.map(t => {
         if (t.id === request.tableId) {
@@ -344,50 +344,78 @@ export default function WaiterDashboard() {
       }));
     };
 
-    socket.on("order-ready", handleReadyOrder);
     socket.on("ORDER_READY", handleReadyOrder);
 
     const handleWaiterAccepted = (data: any) => {
       const targetId = data.orderId || data.order?.id || data.id;
       if (!targetId) return;
       setReadyOrders(prev => prev.filter(o => o.id !== targetId));
-      loadDashboard();
+      if (data.order) {
+        setMyDeliveries(prev => {
+          const exists = prev.find(o => o.id === data.order.id);
+          if (!exists) return [data.order, ...prev];
+          return prev;
+        });
+        handleUpdateOrderInTables(data.order);
+      }
     };
 
-    socket.on("order-accepted-by-waiter", handleWaiterAccepted);
-    socket.on("WAITER_ACCEPTED", handleWaiterAccepted);
+    socket.on("ORDER_PICKED_UP", handleWaiterAccepted);
 
-    socket.on("order-new", (newOrder: any) => {
-      loadDashboard();
-    });
+    const handleNewOrder = (newOrder: any) => {
+      if (!newOrder || !newOrder.id) return;
+      setTables(prev => prev.map(t => {
+        if (t.id === newOrder.tableId) {
+          const exists = t.orders.find((o: any) => o.id === newOrder.id);
+          if (!exists) {
+            return { ...t, orders: [newOrder, ...t.orders], status: "OCCUPIED" };
+          }
+        }
+        return t;
+      }));
+    };
 
-    socket.on("order-accepted", (updatedOrder: any) => {
-      loadDashboard();
-    });
+    socket.on("ORDER_CREATED", handleNewOrder);
 
-    socket.on("order-preparing", (updatedOrder: any) => {
-      loadDashboard();
-    });
+    const handleUpdateOrderInTables = (updatedOrder: any) => {
+      if (!updatedOrder || !updatedOrder.id) return;
+      setTables(prev => prev.map(t => {
+        if (t.id === updatedOrder.tableId || t.orders.some((o: any) => o.id === updatedOrder.id)) {
+          return {
+            ...t,
+            orders: t.orders.map((o: any) => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o)
+          };
+        }
+        return t;
+      }));
+    };
+
+    socket.on("ORDER_ACCEPTED", handleUpdateOrderInTables);
+    socket.on("ORDER_COOKING", handleUpdateOrderInTables);
+    socket.on("ORDER_UPDATED", handleUpdateOrderInTables);
 
     const handleServedOrder = (updatedOrder: any) => {
       if (!updatedOrder || !updatedOrder.id) return;
       setReadyOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
       setMyDeliveries(prev => prev.filter(o => o.id !== updatedOrder.id));
-      loadDashboard();
+      handleUpdateOrderInTables(updatedOrder);
     };
 
-    socket.on("order-served", handleServedOrder);
-    socket.on("ORDER_SERVED", handleServedOrder);
-
-    socket.on("order-completed", handleServedOrder);
+    socket.on("ORDER_DELIVERED", handleServedOrder);
     socket.on("ORDER_COMPLETED", handleServedOrder);
 
-    socket.on("payment-completed", (updatedOrder: any) => {
-      loadDashboard();
+    socket.on("PAYMENT_COMPLETED", (updatedOrder: any) => {
+      handleUpdateOrderInTables(updatedOrder);
     });
 
-    socket.on("table-closed", (tableData: any) => {
-      loadDashboard();
+    socket.on("TABLE_CLOSED", (tableData: any) => {
+      if (!tableData || !tableData.id) return;
+      setTables(prev => prev.map(t => {
+        if (t.id === tableData.id) {
+          return { ...t, status: "FREE", orders: [] };
+        }
+        return t;
+      }));
     });
 
     return () => {

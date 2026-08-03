@@ -191,7 +191,7 @@ export async function recordOrderPayment(
     });
 
     await logActivity(adminUserId, "RECORD_PAYMENT", `Processed payments total ₹${payments.reduce((sum, p) => sum + p.amount, 0)} for Ticket ${result.order.orderNumber}`);
-    await publishSocketEvent("payment-completed", result.order);
+    await publishSocketEvent("PAYMENT_COMPLETED", result.order);
 
     return { success: true, order: result.order, invoiceNumber: result.invoiceNumber };
   } catch (error: any) {
@@ -257,7 +257,7 @@ export async function recordRefund(
     });
 
     await logActivity(adminUserId, "REFUND_ORDER", `Processed refund of ₹${refundAmount} on Ticket ${result.orderNumber}. Reason: "${reason}"`);
-    await publishSocketEvent("order-updated", result);
+    await publishSocketEvent("ORDER_UPDATED", result);
 
     return { success: true, order: result };
   } catch (error: any) {

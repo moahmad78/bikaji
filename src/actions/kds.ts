@@ -3,6 +3,7 @@
 import db from "@/lib/db";
 import { OrderStatus, TableStatus } from "@prisma/client";
 import { publishSocketEvent } from "@/lib/socket-helper";
+import { revalidatePath } from "next/cache";
 
 // Fetch all active orders for the Kitchen Display System
 export async function getKDSOrders() {
@@ -138,9 +139,11 @@ export async function acceptKDSOrder(orderId: string, expectedPrepTimeMinutes: n
       }
     });
 
-    await publishSocketEvent("order-accepted", updatedOrder);
     await publishSocketEvent("ORDER_ACCEPTED", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error accepting order:", error);
@@ -168,9 +171,11 @@ export async function startPreparingKDSOrder(orderId: string) {
       }
     });
 
-    await publishSocketEvent("order-preparing", updatedOrder);
-    await publishSocketEvent("ORDER_PREPARING", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_COOKING", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error preparing order:", error);
@@ -204,9 +209,11 @@ export async function markKDSOrderReady(orderId: string) {
       data: { status: TableStatus.READY }
     });
 
-    await publishSocketEvent("order-ready", updatedOrder);
     await publishSocketEvent("ORDER_READY", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error marking order ready:", error);
@@ -240,10 +247,11 @@ export async function completeKDSOrder(orderId: string) {
       data: { status: TableStatus.FREE } // For KDS we clear it or mark it FREE
     });
 
-    await publishSocketEvent("order-completed", updatedOrder);
     await publishSocketEvent("ORDER_COMPLETED", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
-    return { success: true, order: updatedOrder };
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error completing order:", error);
@@ -278,9 +286,11 @@ export async function delayKDSOrder(orderId: string, minutes: number, reason?: s
       }
     });
 
-    await publishSocketEvent("order-delayed", updatedOrder);
     await publishSocketEvent("ORDER_DELAYED", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error delaying order:", error);
@@ -306,7 +316,10 @@ export async function addKDSOrderNote(orderId: string, note: string) {
       }
     });
 
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error adding kitchen note:", error);
@@ -340,7 +353,10 @@ export async function rejectKDSOrder(orderId: string) {
       data: { status: TableStatus.FREE }
     });
 
-    await publishSocketEvent("order-cancelled", updatedOrder);
+    await publishSocketEvent("ORDER_CANCELLED", updatedOrder);
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
     return { success: true, order: updatedOrder };
   } catch (error: any) {
     console.error("[KDS Actions] Error rejecting order:", error);
@@ -468,10 +484,14 @@ export async function cancelKDSOrderItem(orderItemId: string) {
     });
 
     if (result.isEntireCancelled) {
-      await publishSocketEvent("order-cancelled", result.order);
+      await publishSocketEvent("ORDER_CANCELLED", result.order);
     } else {
-      await publishSocketEvent("order-updated", result.order);
+      await publishSocketEvent("ORDER_UPDATED", result.order);
     }
+
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
 
     return { success: true, order: result.order, isEntireCancelled: result.isEntireCancelled };
   } catch (error: any) {

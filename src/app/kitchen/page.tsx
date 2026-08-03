@@ -389,49 +389,42 @@ export default function KitchenPage() {
         if (!exists) {
           return [updatedOrder, ...prev];
         }
-        return prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
+        return prev.map(o => {
+          if (o.id === updatedOrder.id) {
+            // Prevent older socket events from overwriting newer local/optimistic state
+            const currentUpdate = new Date(o.updatedAt || 0).getTime();
+            const incomingUpdate = new Date(updatedOrder.updatedAt || 0).getTime();
+            
+            // Allow optimistic local updates (which set updatedAt just now) to take precedence over delayed socket events
+            if (currentUpdate > incomingUpdate) {
+              return o;
+            }
+            return { ...o, ...updatedOrder };
+          }
+          return o;
+        });
       });
     };
 
-    // Subscribed Event streams (support both lowercase and uppercase event names)
-    socket.on("order-new", handleNewOrder);
+    // Subscribed Event streams
     socket.on("ORDER_CREATED", handleNewOrder);
-
-    socket.on("order-accepted", handleUpdateOrder);
     socket.on("ORDER_ACCEPTED", handleUpdateOrder);
-
-    socket.on("order-preparing", handleUpdateOrder);
-    socket.on("ORDER_PREPARING", handleUpdateOrder);
-
-    socket.on("order-ready", handleUpdateOrder);
+    socket.on("ORDER_COOKING", handleUpdateOrder);
     socket.on("ORDER_READY", handleUpdateOrder);
 
-    socket.on("order-completed", (updatedOrder: any) => {
-      if (!updatedOrder?.id) return;
-      setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
-    });
     socket.on("ORDER_COMPLETED", (updatedOrder: any) => {
       if (!updatedOrder?.id) return;
       setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
     });
 
-    socket.on("order-cancelled", (updatedOrder: any) => {
-      if (!updatedOrder?.id) return;
-      setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
-    });
     socket.on("ORDER_CANCELLED", (updatedOrder: any) => {
       if (!updatedOrder?.id) return;
       setOrders(prev => prev.filter(o => o.id !== updatedOrder.id));
     });
 
-    socket.on("order-updated", handleUpdateOrder);
+    socket.on("ORDER_UPDATED", handleUpdateOrder);
 
     // Customer reply from order status page
-    socket.on("customer-reply", (updatedOrder: any) => {
-      if (!updatedOrder?.id) return;
-      playChime("warning");
-      setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, customerReply: updatedOrder.customerReply } : o));
-    });
     socket.on("CUSTOMER_REPLY", (updatedOrder: any) => {
       if (!updatedOrder?.id) return;
       playChime("warning");

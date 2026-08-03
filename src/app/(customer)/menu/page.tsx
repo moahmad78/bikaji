@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useCart, SelectedModifier, SelectedAddon, CartItem } from "@/features/cart/CartContext";
 import { getMenuData } from "@/actions/menu";
-import { validateCoupon } from "@/actions/coupon";
+import { validateCoupon, getAvailableCoupons } from "@/actions/coupon";
 import { submitOrder, getTableSessionOrders, sendCustomerOrderReply } from "@/actions/order";
 import { createServiceRequest } from "@/actions/serviceRequest";
 import { getTableDetails } from "@/actions/table";
@@ -27,6 +27,7 @@ import {
   Bell,
   FileText,
   Droplet,
+  ChevronLeft,
   ChevronRight,
   Info,
   SlidersHorizontal,
@@ -35,6 +36,11 @@ import {
   ArrowUpDown,
   CheckCircle2,
   PackageCheck,
+  Gift,
+  Copy,
+  ArrowRight,
+  Tag,
+  Zap
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -146,16 +152,10 @@ export default function MenuPage() {
   const [successOrderNumber, setSuccessOrderNumber] = useState<string>("");
   
   const KITCHEN_CHIPS_OPTIONS = [
-    { label: "Less Spicy", icon: "🌶" },
-    { label: "No Onion", icon: "🧅" },
-    { label: "Less Oil", icon: "🥄" },
-    { label: "Extra Plates", icon: "🍽" },
-    { label: "Extra Glass", icon: "🥤" },
-    { label: "Extra Napkins", icon: "🧻" },
-    { label: "Extra Spoon", icon: "🥄" },
-    { label: "Extra Cutlery", icon: "🍴" },
-    { label: "Lemon Required", icon: "🍋" },
-    { label: "Make it Hot", icon: "🔥" },
+    { label: "Extra Chutney", icon: "🥣" },
+    { label: "Extra Napkin", icon: "🧻" },
+    { label: "Extra Spicy", icon: "🌶" },
+    { label: "Less Spicy", icon: "😌" },
   ];
 
   // Coupon State
@@ -163,6 +163,11 @@ export default function MenuPage() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState<boolean>(false);
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+  const [fetchingCoupons, setFetchingCoupons] = useState<boolean>(false);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const [isBannerHovered, setIsBannerHovered] = useState(false);
+  const [bannerDirection, setBannerDirection] = useState(1);
 
   // Table Service Call Modal State
   const [serviceFABOpen, setServiceFABOpen] = useState<boolean>(false);
@@ -212,39 +217,86 @@ export default function MenuPage() {
     }
   };
 
+  // Helper to load available coupons
+  const loadAvailableCoupons = async () => {
+    setFetchingCoupons(true);
+    try {
+      const res = await getAvailableCoupons(branchId);
+      if (res.success && res.coupons) {
+        setAvailableCoupons(res.coupons);
+      }
+    } catch (err) {
+      console.error("Error loading coupons:", err);
+    } finally {
+      setFetchingCoupons(false);
+    }
+  };
+
   useEffect(() => {
     if (tableId) {
       loadSessionOrders();
     }
-  }, [tableId]);
+    loadAvailableCoupons();
+  }, [tableId, branchId]);
+
+  useEffect(() => {
+    if (availableCoupons.length > 1 && !isBannerHovered) {
+      const interval = setInterval(() => {
+        setBannerDirection(1);
+        setActiveBannerIndex((prev) => (prev + 1) % availableCoupons.length);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [availableCoupons.length, isBannerHovered]);
+
+  const handleBannerPaginate = (newDirection: number, event?: React.MouseEvent) => {
+    if (event) event.stopPropagation();
+    setBannerDirection(newDirection);
+    setActiveBannerIndex((prev) => {
+      let nextIndex = prev + newDirection;
+      if (nextIndex < 0) nextIndex = availableCoupons.length - 1;
+      if (nextIndex >= availableCoupons.length) nextIndex = 0;
+      return nextIndex;
+    });
+  };
 
   // Real-time Socket Updates for Customer SPA
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
     const socket = io(socketUrl, { autoConnect: true });
 
-    const handleOrderUpdate = () => {
-      loadSessionOrders();
+    const handleOrderUpdate = (updatedOrder: any) => {
+      if (!updatedOrder || !updatedOrder.id) return;
+      
+      setSessionOrders((prevOrders) => {
+        const exists = prevOrders.find(o => o.id === updatedOrder.id);
+        if (exists) {
+          if (updatedOrder.updatedAt && exists.updatedAt) {
+            const incomingTime = new Date(updatedOrder.updatedAt).getTime();
+            const existingTime = new Date(exists.updatedAt).getTime();
+            if (incomingTime < existingTime) return prevOrders;
+          }
+          return prevOrders.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
+        } else {
+          if (updatedOrder.tableId === tableId) {
+            return [updatedOrder, ...prevOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          }
+          return prevOrders;
+        }
+      });
     };
 
-    socket.on("order-new", handleOrderUpdate);
-    socket.on("order-accepted", handleOrderUpdate);
-    socket.on("order-preparing", handleOrderUpdate);
-    socket.on("order-ready", handleOrderUpdate);
-    socket.on("order-accepted-by-waiter", handleOrderUpdate);
-    socket.on("order-served", handleOrderUpdate);
-    socket.on("order-completed", handleOrderUpdate);
-    socket.on("order-updated", handleOrderUpdate);
+    const events = [
+      "ORDER_CREATED", "ORDER_ACCEPTED", "ORDER_COOKING", "ORDER_READY",
+      "WAITER_ASSIGNED", "ORDER_PICKED_UP", "ORDER_DELIVERED",
+      "ORDER_COMPLETED", "ORDER_DELAYED", "ORDER_CANCELLED", "ORDER_UPDATED",
+      "CUSTOMER_REPLY"
+    ];
+
+    events.forEach(evt => socket.on(evt, handleOrderUpdate));
 
     return () => {
-      socket.off("order-new", handleOrderUpdate);
-      socket.off("order-accepted", handleOrderUpdate);
-      socket.off("order-preparing", handleOrderUpdate);
-      socket.off("order-ready", handleOrderUpdate);
-      socket.off("order-accepted-by-waiter", handleOrderUpdate);
-      socket.off("order-served", handleOrderUpdate);
-      socket.off("order-completed", handleOrderUpdate);
-      socket.off("order-updated", handleOrderUpdate);
+      events.forEach(evt => socket.off(evt, handleOrderUpdate));
       socket.disconnect();
     };
   }, [tableId]);
@@ -677,6 +729,216 @@ export default function MenuPage() {
         {/* 1. 🍽 MENU TAB */}
         {activeTab === "menu" && (
           <>
+            {/* Promotional Banner Carousel */}
+            {availableCoupons.length > 0 && (
+              <div 
+                className="relative overflow-hidden bg-gradient-to-br from-[#4a000f] via-[#590013] to-[#800020] rounded-2xl md:rounded-[24px] shadow-[0_10px_30px_rgba(89,0,19,0.4)] border border-[#baa47f]/40 flex flex-col group mt-2"
+                onMouseEnter={() => setIsBannerHovered(true)}
+                onMouseLeave={() => setIsBannerHovered(false)}
+                onTouchStart={() => setIsBannerHovered(true)}
+                onTouchEnd={() => setIsBannerHovered(false)}
+              >
+                {/* Glossy shine effect backdrop */}
+                <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none rounded-[24px]">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-[#baa47f]/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/4" />
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-[60px] translate-y-1/2 -translate-x-1/4" />
+                </div>
+
+                <div className="relative flex-1 flex items-center justify-center overflow-hidden">
+                  <AnimatePresence initial={false} custom={bannerDirection} mode="popLayout">
+                    <motion.div
+                      key={activeBannerIndex}
+                      custom={bannerDirection}
+                      variants={{
+                        enter: (direction: number) => ({
+                          x: direction > 0 ? "100%" : "-100%",
+                          scale: 0.98,
+                          opacity: 0,
+                        }),
+                        center: {
+                          zIndex: 1,
+                          x: 0,
+                          scale: 1,
+                          opacity: 1,
+                        },
+                        exit: (direction: number) => ({
+                          zIndex: 0,
+                          x: direction < 0 ? "100%" : "-100%",
+                          scale: 0.98,
+                          opacity: 0,
+                        }),
+                      }}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={{
+                        x: { type: "tween", ease: [0.4, 0, 0.2, 1], duration: 0.6 },
+                        opacity: { duration: 0.3 },
+                        scale: { duration: 0.6 }
+                      }}
+                      drag={availableCoupons.length > 1 ? "x" : false}
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={1}
+                      onDragEnd={(e, { offset, velocity }) => {
+                        const swipe = offset.x;
+                        if (swipe < -50) {
+                          handleBannerPaginate(1);
+                        } else if (swipe > 50) {
+                          handleBannerPaginate(-1);
+                        }
+                      }}
+                      className="relative z-10 w-full"
+                    >
+                      <div className="flex flex-col w-full p-3.5 md:p-8">
+                        <div className="flex flex-col md:flex-row w-full items-stretch gap-3 md:gap-0 relative z-10">
+                          
+                          {/* Left Section */}
+                          <div className="flex-1 flex flex-col items-start text-left">
+                            <div className="flex items-center gap-2 mb-2 md:mb-4">
+                              <span className="px-2.5 py-1 rounded bg-[#baa47f]/20 text-[#baa47f] text-[9px] md:text-[10px] font-black tracking-widest uppercase border border-[#baa47f]/30 shadow-sm backdrop-blur-md">
+                                Limited Time Offer
+                              </span>
+                            </div>
+                            <div className="flex items-center md:items-start gap-3 md:gap-5 w-full">
+                              <div className="w-10 h-10 md:w-16 md:h-16 shrink-0 bg-gradient-to-br from-white/10 to-transparent rounded-full flex items-center justify-center border border-white/20 shadow-[0_0_20px_rgba(186,164,127,0.2)] backdrop-blur-xl relative">
+                                <Gift className="w-5 h-5 md:w-8 md:h-8 text-[#baa47f] relative z-10" />
+                                <div className="absolute inset-0 bg-[#baa47f]/20 rounded-full blur-md animate-pulse" />
+                              </div>
+                              <div className="flex flex-col">
+                                <h3 className="text-2xl md:text-4xl font-black text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+                                  FLAT {availableCoupons[activeBannerIndex]?.discountPercent}% OFF
+                                </h3>
+                                <p className="text-[11px] md:text-sm text-zinc-300 md:mt-1 font-medium max-w-[200px] md:max-w-none">
+                                  Enjoy instant savings on your dining bill.
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 md:mt-5 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 w-full">
+                              <div className="flex items-center gap-2 bg-black/40 px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-xl border border-[#baa47f]/30 shadow-inner">
+                                <span className="text-base md:text-lg">🎟</span>
+                                <span className="text-[11px] md:text-sm font-black tracking-widest text-[#baa47f]">
+                                  CODE: {availableCoupons[activeBannerIndex]?.code}
+                                </span>
+                              </div>
+                              <div className="flex flex-col gap-1 md:gap-1.5 mt-1 sm:mt-0">
+                                <div className="flex items-center gap-2 text-[11px] md:text-sm text-white font-bold drop-shadow-md">
+                                  <span className="text-sm md:text-base">💰</span> Save up to ₹{availableCoupons[activeBannerIndex]?.maxDiscount || 500}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] md:text-xs text-emerald-400 font-bold drop-shadow-md">
+                                  <CheckCircle2 className="w-3 md:w-3.5 h-3 md:h-3.5" /> Valid on bills above ₹{availableCoupons[activeBannerIndex]?.minOrderAmount}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Center Divider (Desktop) */}
+                          <div className="hidden md:flex flex-col items-center justify-center px-10 relative">
+                            <div className="w-[2px] h-full bg-gradient-to-b from-transparent via-white/20 to-transparent border-dashed border-l border-white/30"></div>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[120px] font-black text-white/[0.03] tracking-tighter select-none pointer-events-none whitespace-nowrap">
+                              {availableCoupons[activeBannerIndex]?.discountPercent}%
+                            </div>
+                          </div>
+                          
+                          {/* Center Divider (Mobile) */}
+                          <div className="md:hidden w-full h-[2px] bg-gradient-to-r from-transparent via-white/20 to-transparent border-dashed border-t border-white/30 my-1.5 relative">
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[60px] font-black text-white/[0.03] tracking-tighter select-none pointer-events-none">
+                              {availableCoupons[activeBannerIndex]?.discountPercent}%
+                            </div>
+                          </div>
+
+                          {/* Right Section */}
+                          <div className="flex flex-col items-center md:items-end justify-center gap-2 md:gap-3 shrink-0 md:w-56 mt-1 md:mt-0 relative z-10 w-full md:w-auto">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const activeCoupon = availableCoupons[activeBannerIndex];
+                                if (activeCoupon) {
+                                  navigator.clipboard.writeText(activeCoupon.code);
+                                  addToast("Coupon copied!", "success");
+                                }
+                              }}
+                              className="w-full py-2.5 md:py-3.5 bg-gradient-to-r from-white to-zinc-200 hover:from-zinc-200 hover:to-zinc-300 text-[#590013] text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_25px_rgba(255,255,255,0.5)] hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                            >
+                              <Copy className="w-4 h-4" /> Copy Code
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCartOpen(true);
+                              }}
+                              className="hidden md:flex w-full py-3.5 bg-black/30 hover:bg-black/50 border border-[#baa47f]/50 text-[#baa47f] text-xs font-black uppercase tracking-wider rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] items-center justify-center gap-2 backdrop-blur-sm"
+                            >
+                              Order Now <ArrowRight className="w-4 h-4" />
+                            </button>
+                            <p className="text-[9px] md:text-[10px] text-zinc-300 text-center md:text-right mt-0.5 md:mt-1 px-2 leading-snug opacity-80">
+                              Tap to copy and apply automatically at checkout.
+                            </p>
+                          </div>
+
+                        </div>
+
+                        {/* Bottom Row */}
+                        <div className="flex items-center justify-between gap-3 pt-3 mt-3 md:pt-5 md:mt-5 border-t border-white/10 overflow-x-auto no-scrollbar relative z-10 w-full text-[10px] md:text-xs font-extrabold text-white/80 whitespace-nowrap px-1 pb-2 md:pb-1">
+                          <div className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" /> Instant Discount</div>
+                          <div className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-400" /> No Promo Hassle</div>
+                          <div className="flex items-center gap-1.5"><Utensils className="w-3.5 h-3.5 md:w-4 md:h-4 text-sky-400" /> Valid for Dine-In</div>
+                          <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-rose-400" /> Limited Time</div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Left/Right Desktop Controls */}
+                {availableCoupons.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => handleBannerPaginate(-1, e)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 hidden sm:flex shadow-xl backdrop-blur-md"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={(e) => handleBannerPaginate(1, e)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 hidden sm:flex shadow-xl backdrop-blur-md"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+
+                {/* Pagination Dots */}
+                {availableCoupons.length > 1 && (
+                  <div className="flex items-center justify-center gap-2 pb-1.5 md:pb-3 absolute bottom-0 left-0 right-0 z-20">
+                    {availableCoupons.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newDirection = idx > activeBannerIndex ? 1 : -1;
+                          setBannerDirection(newDirection);
+                          setActiveBannerIndex(idx);
+                        }}
+                        className={`transition-all duration-300 rounded-full ${
+                          idx === activeBannerIndex 
+                            ? "w-5 md:w-6 h-1 md:h-1.5 bg-[#baa47f] shadow-[0_0_8px_rgba(186,164,127,0.8)]" 
+                            : "w-1 md:w-1.5 h-1 md:h-1.5 bg-white/40 hover:bg-white/60"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                {/* Subtle shimmer moving across the banner */}
+                <motion.div
+                  animate={{ x: ["-200%", "400%"] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: "easeInOut", repeatDelay: 4 }}
+                  className="absolute top-0 bottom-0 w-32 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[20deg] z-20 pointer-events-none"
+                />
+              </div>
+            )}
+
             {/* Prominent Search Bar & Filter Button */}
         <section className="flex items-center gap-2.5">
           <div className="relative flex-1">
@@ -1215,7 +1477,7 @@ export default function MenuPage() {
 
         {/* 3. 🛒 CART TAB */}
         {activeTab === "cart" && (
-          <div className="flex flex-col max-w-2xl mx-auto w-full mb-24 relative">
+          <div className="flex flex-col max-w-[600px] mx-auto w-full mb-24 relative px-2 sm:px-0">
             <AnimatePresence mode="wait">
               {orderSuccessState === "submitting" && (
                 <motion.div
@@ -1295,101 +1557,45 @@ export default function MenuPage() {
                   key="cart"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-col gap-5 pb-20"
+                  className="flex flex-col gap-3 pb-24"
                 >
-                  {/* SECTION 1: ORDER SUMMARY */}
-                  <section className="bg-gradient-to-br from-[#1b080b] to-[#120507] p-5 rounded-2xl border border-[#baa47f]/30 shadow-xl flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-[#baa47f] font-extrabold uppercase tracking-widest block">Review Order</span>
-                      <h3 className="text-xl font-display font-extrabold text-white mt-1">
-                        Table #{tableNumber || 1}
-                      </h3>
-                    </div>
-                    <div className="bg-black/40 px-4 py-2 rounded-xl border border-white/10 text-center">
-                      <span className="text-[10px] text-zinc-400 uppercase font-bold block">Total Items</span>
-                      <span className="font-extrabold text-white text-lg">
-                        {cartItems.reduce((acc, ci) => acc + ci.quantity, 0)}
-                      </span>
-                    </div>
-                  </section>
-
-                  {/* SECTION 2: ORDER ITEMS */}
-                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl p-4 flex flex-col gap-4">
-                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2">
+                  {/* SECTION 1: ORDER ITEMS COMPACT */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col">
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2 mb-2">
                       Order Items
                     </h4>
                     
-                    <div className="flex flex-col gap-4">
-                      {cartItems.map((ci) => {
-                        const isExpanded = expandedCustomizeItem === ci.cartItemId;
+                    <div className="flex flex-col">
+                      {cartItems.map((ci, index) => {
                         return (
-                          <div key={ci.cartItemId} className="flex flex-col bg-zinc-950 rounded-xl border border-zinc-800/80 overflow-hidden shadow-sm">
-                            <div className="p-3 flex items-start gap-3">
-                              <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-neutral-900 shrink-0">
-                                <Image src={ci.image || "/logo.png"} alt={ci.name} fill className="object-cover" />
-                                <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-md px-1 py-0.5 rounded border border-white/10">
-                                  <span className={`block w-1.5 h-1.5 rounded-full ${ci.isVeg ? "bg-emerald-500" : "bg-rose-500"}`} />
-                                </div>
-                              </div>
-                              
-                              <div className="flex-1 flex flex-col justify-between h-full">
-                                <div>
-                                  <h5 className="font-bold text-sm text-white leading-tight">{ci.name}</h5>
-                                  <span className="text-sm font-extrabold text-[#baa47f] block mt-1">₹{ci.price}</span>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col items-end gap-2 shrink-0">
-                                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1">
-                                  <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity - 1)} className="p-1 hover:text-white text-zinc-400 transition">
-                                    <Minus className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="text-xs font-bold w-4 text-center text-white">{ci.quantity}</span>
-                                  <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity + 1)} className="p-1 hover:text-white text-zinc-400 transition">
-                                    <Plus className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                                <button
-                                  onClick={() => setExpandedCustomizeItem(isExpanded ? null : ci.cartItemId)}
-                                  className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition ${isExpanded ? "text-amber-400" : "text-zinc-500 hover:text-zinc-300"}`}
-                                >
-                                  Customize {isExpanded ? <ChevronRight className="w-3 h-3 rotate-90" /> : <ChevronRight className="w-3 h-3" />}
-                                </button>
-                              </div>
+                          <div key={ci.cartItemId} className={`flex items-center justify-between py-2 ${index !== cartItems.length - 1 ? "border-b border-zinc-800/60" : ""}`}>
+                            <div className="flex flex-col">
+                               <div className="flex items-center gap-1.5">
+                                 <span className={`block w-1.5 h-1.5 rounded-full ${ci.isVeg ? "bg-emerald-500" : "bg-rose-500"}`} />
+                                 <h5 className="font-bold text-[13px] text-white leading-tight">{ci.name}</h5>
+                               </div>
+                               <span className="text-[11px] font-bold text-zinc-400 mt-0.5 ml-3">₹{ci.price}</span>
                             </div>
-                            
-                            {/* Expandable Customization Section for this Item */}
-                            <AnimatePresence>
-                              {isExpanded && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: "auto", opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="border-t border-zinc-800 bg-black/40 overflow-hidden"
-                                >
-                                  <div className="p-3">
-                                    <span className="text-[10px] text-zinc-500 font-bold uppercase mb-1.5 block">Item Special Instructions</span>
-                                    <input
-                                      type="text"
-                                      placeholder="e.g. Less spicy, extra cheese..."
-                                      value={ci.specialNotes || ""}
-                                      onChange={(e) => updateSpecialNotes(ci.cartItemId, e.target.value)}
-                                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#baa47f]"
-                                    />
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+
+                            <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-1.5 py-1 shrink-0">
+                              <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity - 1)} className="p-1 hover:text-white text-zinc-400 transition cursor-pointer">
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="text-[11px] font-bold w-3 text-center text-white">{ci.quantity}</span>
+                              <button onClick={() => updateQuantity(ci.cartItemId, ci.quantity + 1)} className="p-1 hover:text-white text-zinc-400 transition cursor-pointer">
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
                   </section>
 
-                  {/* SECTION 3: KITCHEN INSTRUCTIONS (Global) */}
-                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl p-4 flex flex-col gap-4">
-                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2 flex items-center gap-2">
-                      <Flame className="w-4 h-4 text-amber-500" /> Kitchen Instructions
+                  {/* SECTION 2: QUICK OPTIONS & SPECIAL NOTE */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-3">
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#baa47f]">
+                      Quick Options
                     </h4>
                     
                     <div className="flex flex-wrap gap-2">
@@ -1405,7 +1611,7 @@ export default function MenuPage() {
                                 setKitchenChips(prev => [...prev, chip.label]);
                               }
                             }}
-                            className={`px-3 py-1.5 rounded-full border text-xs font-bold transition flex items-center gap-1.5 ${
+                            className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
                               isSelected 
                                 ? "bg-[#baa47f]/20 border-[#baa47f] text-[#baa47f]" 
                                 : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
@@ -1417,32 +1623,102 @@ export default function MenuPage() {
                         );
                       })}
                     </div>
-
-                    <div>
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase mb-1.5 flex justify-between">
-                        <span>Message to Kitchen</span>
-                        <span>{specialInstructions.length}/250</span>
-                      </span>
-                      <textarea
-                        value={specialInstructions}
-                        onChange={(e) => {
-                          if (e.target.value.length <= 250) {
-                            setSpecialInstructions(e.target.value);
-                          }
-                        }}
-                        placeholder="Any other specific instructions for the chef?"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#baa47f] min-h-[80px] resize-none"
-                      />
+                    
+                    {/* SPECIAL NOTE */}
+                    <textarea
+                      value={specialInstructions}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 250) {
+                          setSpecialInstructions(e.target.value);
+                        }
+                      }}
+                      placeholder={"Less oil...\nNo onion...\nBirthday plate..."}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#baa47f] min-h-[60px] resize-none mt-1"
+                    />
+                  </section>
+                  {/* SECTION 2.5: COUPONS */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#baa47f] flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3" /> Apply Coupon
+                      </h4>
+                      {fetchingCoupons && <Loader2 className="w-3 h-3 animate-spin text-zinc-500" />}
                     </div>
+
+                    {availableCoupons.length > 0 ? (
+                      <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                        {availableCoupons.map((coupon) => {
+                          const isEligible = subtotal >= coupon.minOrderAmount;
+                          const isApplied = appliedCoupon?.code === coupon.code;
+                          const amountNeeded = coupon.minOrderAmount - subtotal;
+                          
+                          return (
+                            <div 
+                              key={coupon.code} 
+                              className={`p-2.5 rounded-lg border flex justify-between items-center transition ${
+                                isApplied 
+                                  ? "bg-emerald-950/30 border-emerald-500/50" 
+                                  : isEligible 
+                                    ? "bg-zinc-950 border-zinc-800" 
+                                    : "bg-zinc-950/50 border-zinc-900 opacity-60"
+                              }`}
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-bold text-xs text-white">{coupon.code}</span>
+                                <span className="text-[10px] text-emerald-400">
+                                  {coupon.discountType === "PERCENTAGE" ? `${coupon.discountPercent}% OFF` : `₹${coupon.discountValue} OFF`}
+                                  {coupon.maxDiscount ? ` up to ₹${coupon.maxDiscount}` : ""}
+                                </span>
+                                {!isEligible ? (
+                                  <span className="text-[9px] text-rose-400 mt-0.5">
+                                    ₹{amountNeeded.toFixed(2)} more required
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-zinc-500 mt-0.5">
+                                    Min bill ₹{coupon.minOrderAmount}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {isApplied ? (
+                                <button 
+                                  onClick={() => applyCoupon(null)}
+                                  className="text-[10px] font-bold text-rose-400 border border-rose-400/30 bg-rose-400/10 px-2 py-1 rounded cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              ) : (
+                                <button 
+                                  disabled={!isEligible}
+                                  onClick={() => applyCoupon({
+                                    code: coupon.code,
+                                    discountPercent: coupon.discountPercent,
+                                    maxDiscount: coupon.maxDiscount,
+                                    minOrderAmount: coupon.minOrderAmount
+                                  })}
+                                  className={`text-[10px] font-bold px-2.5 py-1 rounded transition ${
+                                    isEligible 
+                                      ? "bg-[#baa47f] text-black hover:bg-[#c9b592] cursor-pointer shadow-[0_0_10px_rgba(186,164,127,0.2)]" 
+                                      : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                                  }`}
+                                >
+                                  Apply
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-zinc-500 text-center py-2">
+                        No coupons available.
+                      </div>
+                    )}
                   </section>
 
-                  {/* SECTION 4: BILL SUMMARY */}
-                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl p-5 flex flex-col gap-3">
-                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#baa47f] border-b border-zinc-800 pb-2">
-                      Bill Summary
-                    </h4>
-                    
-                    <div className="flex flex-col gap-2.5 text-xs text-zinc-300 pt-1">
+                  {/* SECTION 3: BILL SUMMARY */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-2">
+                    <div className="flex flex-col gap-1.5 text-[11px] text-zinc-400">
                       <div className="flex justify-between">
                         <span>Subtotal</span>
                         <span className="font-bold text-white">₹{subtotal.toFixed(2)}</span>
@@ -1465,9 +1741,9 @@ export default function MenuPage() {
                         <span className="font-bold text-white">₹{serviceChargeAmount.toFixed(2)}</span>
                       </div>
                       
-                      <div className="flex justify-between text-lg font-display font-extrabold text-white pt-3 border-t border-zinc-800/80 mt-1">
+                      <div className="flex justify-between text-sm font-extrabold text-white pt-2 border-t border-zinc-800/80 mt-0.5">
                         <span>Grand Total</span>
-                        <span className="text-amber-400 font-mono">₹{totalAmount.toFixed(2)}</span>
+                        <span className="text-[#baa47f]">₹{totalAmount.toFixed(2)}</span>
                       </div>
                     </div>
                   </section>
@@ -1477,23 +1753,23 @@ export default function MenuPage() {
             
             {/* STICKY BOTTOM ACTIONS (Only if cart has items and idle) */}
             {orderSuccessState === "idle" && cartItems.length > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 p-4 bg-zinc-950/90 backdrop-blur-xl border-t border-zinc-800 z-40 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                <div className="max-w-2xl mx-auto flex gap-3">
+              <div className="fixed bottom-[60px] left-0 right-0 p-3 bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-800 z-40">
+                <div className="max-w-[600px] mx-auto flex gap-3 items-center px-2 sm:px-0">
                   <button
                     onClick={() => setActiveTab("menu")}
-                    className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-700 transition"
+                    className="flex-1 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-700 transition cursor-pointer"
                   >
-                    Add Items
+                    + Add More
                   </button>
                   <button
                     onClick={handlePlaceOrder}
                     disabled={submittingOrder}
-                    className="flex-[2] py-3.5 bg-[#800020] hover:bg-[#990026] text-white font-extrabold text-xs uppercase tracking-widest rounded-xl border border-[#baa47f]/40 shadow-[0_0_20px_rgba(128,0,32,0.4)] transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="flex-[2] py-3.5 bg-[#800020] hover:bg-[#990026] text-white font-extrabold text-sm uppercase tracking-widest rounded-xl border border-[#baa47f]/40 shadow-[0_0_20px_rgba(128,0,32,0.4)] transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {submittingOrder ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
                     ) : (
-                      <>Place Order • ₹{totalAmount.toFixed(2)}</>
+                      <span>Order Now ₹{totalAmount.toFixed(2)}</span>
                     )}
                   </button>
                 </div>

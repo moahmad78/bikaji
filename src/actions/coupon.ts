@@ -51,3 +51,41 @@ export async function validateCoupon(code: string, subtotal: number, branchId?: 
     return { success: false, error: "Failed to validate coupon." };
   }
 }
+
+export async function getAvailableCoupons(branchId?: string | null) {
+  try {
+    let activeBranchId = branchId;
+    if (!activeBranchId) {
+      const defaultBranch = await db.branch.findFirst();
+      activeBranchId = defaultBranch?.id || null;
+    }
+
+    const coupons = await db.coupon.findMany({
+      where: {
+        branchId: activeBranchId || undefined,
+        isActive: true,
+        deletedAt: null,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
+      },
+      select: {
+        code: true,
+        discountPercent: true,
+        discountType: true,
+        discountValue: true,
+        maxDiscount: true,
+        minOrderAmount: true,
+      },
+      orderBy: {
+        minOrderAmount: 'asc'
+      }
+    });
+
+    return { success: true, coupons };
+  } catch (error: any) {
+    console.error("Error fetching coupons:", error);
+    return { success: false, error: "Failed to fetch available coupons." };
+  }
+}

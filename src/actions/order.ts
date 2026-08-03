@@ -3,6 +3,7 @@
 import db from "@/lib/db";
 import { OrderStatus, PaymentStatus, PaymentMethod, TableStatus } from "@prisma/client";
 import { publishSocketEvent } from "@/lib/socket-helper";
+import { revalidatePath } from "next/cache";
 
 interface SelectedModifierInput {
   id: string;
@@ -190,13 +191,16 @@ export async function submitOrder(input: SubmitOrderInput) {
       try {
         const fullOrderRes = await getOrderDetails(result.id);
         if (fullOrderRes.success && fullOrderRes.order) {
-          await publishSocketEvent("order-new", fullOrderRes.order);
           await publishSocketEvent("ORDER_CREATED", fullOrderRes.order);
         }
       } catch (err) {
         console.error("Failed to publish socket event for new order:", err);
       }
     }
+
+    revalidatePath("/kitchen");
+    revalidatePath("/waiter");
+    revalidatePath("/admin");
 
     return { success: true, orderId: result.id, orderNumber: result.orderNumber };
   } catch (error: any) {
@@ -256,9 +260,8 @@ export async function sendCustomerOrderReply(orderId: string, replyText: string)
       },
     });
 
-    await publishSocketEvent("customer-reply", updatedOrder);
     await publishSocketEvent("CUSTOMER_REPLY", updatedOrder);
-    await publishSocketEvent("order-updated", updatedOrder);
+    await publishSocketEvent("ORDER_UPDATED", updatedOrder);
 
     return { success: true, order: updatedOrder };
   } catch (error: any) {

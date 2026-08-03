@@ -93,24 +93,31 @@ export default function AdminOrdersPage() {
       socket.emit("admin-connected");
     });
 
-    const handleEventTrigger = () => {
-      loadData();
+    const handleEventTrigger = (updatedOrder: any) => {
+      if (!updatedOrder || !updatedOrder.id) return;
+      setOrders(prev => {
+        const exists = prev.find(o => o.id === updatedOrder.id);
+        if (exists) {
+          return prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
+        } else {
+          return [updatedOrder, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+      });
+      // Optionally update selectedOrder if it's the one currently open
+      setSelectedOrder((prev: any) => (prev?.id === updatedOrder.id ? { ...prev, ...updatedOrder } : prev));
     };
 
-    socket.on("order-new", handleEventTrigger);
-    socket.on("order-accepted", handleEventTrigger);
-    socket.on("order-preparing", handleEventTrigger);
-    socket.on("order-ready", handleEventTrigger);
-    socket.on("order-served", handleEventTrigger);
-    socket.on("ORDER_SERVED", handleEventTrigger);
-    socket.on("order-accepted-by-waiter", handleEventTrigger);
-    socket.on("WAITER_ACCEPTED", handleEventTrigger);
-    socket.on("order-completed", handleEventTrigger);
-    socket.on("order-cancelled", handleEventTrigger);
-    socket.on("order-updated", handleEventTrigger);
-    socket.on("payment-completed", handleEventTrigger);
+    const events = [
+      "ORDER_CREATED", "ORDER_ACCEPTED", "ORDER_COOKING", "ORDER_READY",
+      "WAITER_ASSIGNED", "ORDER_PICKED_UP", "ORDER_DELIVERED",
+      "ORDER_COMPLETED", "ORDER_CANCELLED", "ORDER_DELAYED",
+      "ORDER_UPDATED", "CUSTOMER_REPLY", "PAYMENT_COMPLETED"
+    ];
+
+    events.forEach(evt => socket.on(evt, handleEventTrigger));
 
     return () => {
+      events.forEach(evt => socket.off(evt, handleEventTrigger));
       socket.disconnect();
     };
   }, []);
@@ -523,7 +530,7 @@ export default function AdminOrdersPage() {
                 <div className="flex flex-col gap-3">
                   <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Itemized Breakdown</h4>
                   <div className="flex flex-col gap-2.5">
-                    {selectedOrder.items.map((item: any) => (
+                    {selectedOrder.items?.map((item: any) => (
                       <div key={item.id} className="pb-2 border-b border-[#201011] last:border-0 flex justify-between items-center text-xs">
                         <div>
                           <span className="font-extrabold text-zinc-200">{item.name}</span>

@@ -31,7 +31,7 @@ export async function createServiceRequest(tableId: string, type: RequestType, n
     });
 
     // Broadcast customer request event to active waiters in real-time
-    await publishSocketEvent("customer-request", request);
+    await publishSocketEvent("SERVICE_REQUEST", request);
 
     return { success: true, requestId: request.id };
   } catch (error: any) {

@@ -186,7 +186,7 @@ export async function updateAdminOrderStatus(orderId: string, status: OrderStatu
     });
 
     await logActivity(adminUserId, "UPDATE_ORDER_STATUS", `Updated Ticket ${updated.orderNumber} status to ${status}`);
-    await publishSocketEvent("order-updated", updated);
+    await publishSocketEvent("ORDER_UPDATED", updated);
 
     return { success: true, order: updated };
   } catch (error: any) {
@@ -219,7 +219,7 @@ export async function cancelOrRefundAdminOrder(orderId: string, isRefund: boolea
     });
 
     await logActivity(adminUserId, isRefund ? "REFUND_ORDER" : "CANCEL_ORDER", `Processed ${isRefund ? "refund" : "cancellation"} for Ticket ${updated.orderNumber}`);
-    await publishSocketEvent(isRefund ? "order-updated" : "order-cancelled", updated);
+    await publishSocketEvent(isRefund ? "ORDER_UPDATED" : "ORDER_CANCELLED", updated);
 
     return { success: true, order: updated };
   } catch (error: any) {
@@ -267,7 +267,7 @@ export async function createAdminTable(
     });
 
     await logActivity(adminUserId, "CREATE_TABLE", `Created Table ${tableNumber} with capacity ${capacity} in ${floor || "Ground Floor"}`);
-    await publishSocketEvent("table-closed", { tableId: table.id, status: TableStatus.FREE });
+    await publishSocketEvent("TABLE_CLOSED", { tableId: table.id, status: TableStatus.FREE });
 
     return { success: true, table };
   } catch (error: any) {
@@ -304,7 +304,7 @@ export async function updateAdminTableLayout(
       }
     });
 
-    await publishSocketEvent("order-updated", { tableId });
+    await publishSocketEvent("ORDER_UPDATED", { tableId });
     return { success: true, table };
   } catch (error: any) {
     console.error("[Admin Actions] Error updating table layout:", error);

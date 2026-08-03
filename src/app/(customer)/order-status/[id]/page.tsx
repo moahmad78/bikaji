@@ -56,6 +56,7 @@ interface OrderItemWithMenuItem {
 }
 
 interface OrderWithTableAndItems {
+  updatedAt: any;
   id: string;
   orderNumber: string;
   customerName: string | null;
@@ -183,29 +184,33 @@ export default function OrderStatusPage() {
     const handleRealtimeUpdate = (updatedData: any) => {
       if (!updatedData || (updatedData.id !== orderId && updatedData.orderId !== orderId)) return;
       console.log("[OrderStatusPage] Realtime status update received:", updatedData.status);
-      addToast(`Order status updated to ${updatedData.status || "latest"}`, "info");
-      fetchStatus();
+      if (updatedData.status) {
+        addToast(`Order status updated to ${updatedData.status}`, "info");
+      }
+      
+      setOrder((prev) => {
+        if (!prev) return prev;
+        if (updatedData.updatedAt && prev.updatedAt) {
+          if (new Date(updatedData.updatedAt).getTime() < new Date(prev.updatedAt).getTime()) {
+            return prev;
+          }
+        }
+        return { ...prev, ...updatedData };
+      });
     };
 
-    socket.on("order-accepted", handleRealtimeUpdate);
     socket.on("ORDER_ACCEPTED", handleRealtimeUpdate);
-    socket.on("order-preparing", handleRealtimeUpdate);
-    socket.on("ORDER_PREPARING", handleRealtimeUpdate);
-    socket.on("order-ready", handleRealtimeUpdate);
+    socket.on("ORDER_COOKING", handleRealtimeUpdate);
     socket.on("ORDER_READY", handleRealtimeUpdate);
-    socket.on("order-accepted-by-waiter", handleRealtimeUpdate);
-    socket.on("WAITER_ACCEPTED", handleRealtimeUpdate);
-    socket.on("order-served", handleRealtimeUpdate);
-    socket.on("ORDER_SERVED", handleRealtimeUpdate);
-    socket.on("order-completed", handleRealtimeUpdate);
+    socket.on("WAITER_ASSIGNED", handleRealtimeUpdate);
+    socket.on("ORDER_PICKED_UP", handleRealtimeUpdate);
+    socket.on("ORDER_DELIVERED", handleRealtimeUpdate);
     socket.on("ORDER_COMPLETED", handleRealtimeUpdate);
-    socket.on("order-delayed", handleRealtimeUpdate);
     socket.on("ORDER_DELAYED", handleRealtimeUpdate);
-    socket.on("order-updated", handleRealtimeUpdate);
+    socket.on("ORDER_CANCELLED", handleRealtimeUpdate);
+    socket.on("ORDER_UPDATED", handleRealtimeUpdate);
 
-    const interval = setInterval(fetchStatus, 10000);
     return () => {
-      clearInterval(interval);
       socket.disconnect();
     };
   }, [orderId]);
