@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"node socket-server.js\" \"next dev\"",
-    "build": "npx prisma generate && npx prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "6.3.0",
