@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,7 +14,6 @@ import {
   Settings,
   LogOut,
   Bell,
-  Search,
   Loader2,
   Lock,
   Mail,
@@ -25,7 +24,6 @@ import {
   Sparkles
 } from "lucide-react";
 import Image from "next/image";
-import { getOrCreateWaiterProfile } from "@/actions/waiter";
 import { authClient } from "@/lib/auth-client";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -47,8 +45,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [showNotificationDropdown, setShowNotificationDropdown] = useState<boolean>(false);
 
   const socketRef = useRef<Socket | null>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
-  // 1. Session verification on mount
+  // 1. Session verification — runs ONCE on mount only.
+  //    DO NOT add pathname to the dependency array — that causes the layout
+  //    to re-run the async session check on every navigation, resetting
+  //    authLoading/session state mid-route and breaking the sidebar.
   useEffect(() => {
     async function checkSession() {
       try {
@@ -59,9 +61,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             setSession(currentSession);
           } else {
             setSession(null);
-            if (pathname !== "/admin") {
-              router.push("/admin");
-            }
           }
         }
       } catch (err) {
@@ -71,9 +70,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     checkSession();
+  }, []); // ← intentionally empty: only run once on mount
+
+  // 2. Close notification dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotificationDropdown(false);
+      }
+    }
+    if (showNotificationDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showNotificationDropdown]);
+
+  // 3. Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
   }, [pathname]);
 
-  // 2. Setup Socket connections for real-time admin indicators
+  // 4. Setup Socket connections for real-time admin indicators
   useEffect(() => {
     if (!session?.user) return;
 
@@ -87,7 +104,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       timeout: 10000,
       auth: {
         role: "ADMIN",
-        branchId: session?.user?.branchId || null,
+        branchId: (session?.user as any)?.branchId || null,
       },
     });
     socketRef.current = socket;
@@ -203,16 +220,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setPassword("password123");
   };
 
+  // Navigation handler — extracted to avoid inline closure re-creation
+  const navigateTo = useCallback((path: string) => {
+    setMobileSidebarOpen(false);
+    router.push(path);
+  }, [router]);
+
   // Sidebar Links Structure
   const sidebarLinks = [
-    { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
-    { label: "Orders", path: "/admin/orders", icon: Sparkles },
-    { label: "Tables & QR", path: "/admin/tables", icon: Smartphone },
-    { label: "Menu Catalog", path: "/admin/menu", icon: Utensils },
-    { label: "Coupons", path: "/admin/coupons", icon: Tag },
-    { label: "Staff Members", path: "/admin/staff", icon: Users },
-    { label: "Audit Logs", path: "/admin/logs", icon: History },
-    { label: "Settings", path: "/admin/settings", icon: Settings },
+    { label: "Dashboard",    path: "/admin",          icon: LayoutDashboard },
+    { label: "Orders",       path: "/admin/orders",   icon: Sparkles        },
+    { label: "Tables & QR",  path: "/admin/tables",   icon: Smartphone      },
+    { label: "Menu Catalog", path: "/admin/menu",     icon: Utensils        },
+    { label: "Coupons",      path: "/admin/coupons",  icon: Tag             },
+    { label: "Staff Members",path: "/admin/staff",    icon: Users           },
+    { label: "Audit Logs",   path: "/admin/logs",     icon: History         },
+    { label: "Settings",     path: "/admin/settings", icon: Settings        },
   ];
 
   if (authLoading) {
@@ -309,8 +332,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // --- FULL DUAL PANEL ADMIN DASHBOARD SUITE ---
   return (
-    <div className="bg-[#0b0506] text-white min-h-screen font-sans flex overflow-hidden">
-      
+    <div className="bg-[#0b0506] text-white min-h-screen font-sans flex">
+
       {/* 1. DESKTOP SIDEBAR PANEL */}
       <aside className="hidden lg:flex flex-col w-64 bg-[#140b0c] border-r border-[#251416] shrink-0 h-screen sticky top-0 z-20">
         {/* Sidebar Header */}
@@ -327,8 +350,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             return (
               <button
                 key={link.path}
-                onClick={() => router.push(link.path)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                type="button"
+                onClick={() => navigateTo(link.path)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
                   isActive
                     ? "bg-primary border border-[#baa47f]/15 text-white"
                     : "text-zinc-400 hover:text-white hover:bg-[#201011]"
@@ -358,8 +382,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <button
+            type="button"
             onClick={handleLogoutSubmit}
-            className="p-2 rounded bg-zinc-950 border border-zinc-850 text-red-400 hover:bg-red-955/20 transition cursor-pointer"
+            className="p-2 rounded bg-zinc-950 border border-zinc-850 text-red-400 hover:bg-red-950/20 transition cursor-pointer"
             title="Log out of Admin Portal"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -369,12 +394,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* 2. MAIN VIEW AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        
+
         {/* Top bar header */}
-        <header className="bg-[#140b0c] border-b border-[#251416] px-6 py-4 flex items-center justify-between shadow-soft z-30">
+        <header className="bg-[#140b0c] border-b border-[#251416] px-6 py-4 flex items-center justify-between shadow-soft z-30 shrink-0">
           <div className="flex items-center gap-3">
             {/* Mobile Sidebar Hamburger Toggle */}
             <button
+              type="button"
               onClick={() => setMobileSidebarOpen(true)}
               className="lg:hidden p-2 rounded-lg bg-[#201011] border border-[#251416] text-zinc-300 cursor-pointer"
             >
@@ -391,7 +417,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* Sockets status, search & notifications */}
+          {/* Sockets status & notifications */}
           <div className="flex items-center gap-3">
             <span className={`text-[9px] border px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider hidden sm:inline-block ${
               socketConnected ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400 animate-pulse"
@@ -400,9 +426,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
 
             {/* Notifications Trigger */}
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
-                onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+                type="button"
+                onClick={() => setShowNotificationDropdown(v => !v)}
                 className={`p-2 rounded-lg border transition relative cursor-pointer ${
                   notifications.some(n => n.unread)
                     ? "bg-[#201011] border-[#baa47f]/30 text-[#baa47f]"
@@ -427,6 +454,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <div className="px-4 py-3 border-b border-[#2d191b] flex justify-between items-center bg-[#0d0506]">
                       <span className="text-xs font-bold text-white uppercase tracking-wider">Live Alerts Feed</span>
                       <button
+                        type="button"
                         onClick={() => {
                           setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
                         }}
@@ -489,6 +517,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               {/* Close Button */}
               <button
+                type="button"
                 onClick={() => setMobileSidebarOpen(false)}
                 className="absolute top-4 right-4 p-1.5 rounded-lg bg-[#201011] border border-[#251416] text-zinc-400 cursor-pointer"
               >
@@ -507,11 +536,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   return (
                     <button
                       key={link.path}
-                      onClick={() => {
-                        setMobileSidebarOpen(false);
-                        router.push(link.path);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      type="button"
+                      onClick={() => navigateTo(link.path)}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
                         isActive
                           ? "bg-primary border border-[#baa47f]/15 text-white"
                           : "text-zinc-400 hover:text-white hover:bg-[#201011]"
@@ -540,8 +567,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleLogoutSubmit}
-                  className="p-2 rounded bg-zinc-950 border border-zinc-850 text-red-400 hover:bg-red-955/20 transition cursor-pointer"
+                  className="p-2 rounded bg-zinc-950 border border-zinc-850 text-red-400 hover:bg-red-950/20 transition cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
