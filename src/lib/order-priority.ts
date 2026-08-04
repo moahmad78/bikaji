@@ -42,10 +42,17 @@ const ADMIN_STATUS_WEIGHT: Record<string, number> = {
   REFUNDED: 7,
 };
 
+// Helper: Get latest activity timestamp (updatedAt || createdAt)
+function getLatestTimestamp<T extends { createdAt: string; updatedAt?: string }>(order: T): number {
+  const updated = order.updatedAt ? new Date(order.updatedAt).getTime() : 0;
+  const created = new Date(order.createdAt).getTime();
+  return Math.max(updated, created);
+}
+
 // ─── Kitchen Order Sorting ───────────────────────────────────────────────────
-// Priority: Urgent Pending (pending > 30s) → Normal Pending → Accepted → Preparing → Ready → Delivered → Completed
-// Inside each group: newest first (highest createdAt first)
-export function sortKDSOrders<T extends { status: string; createdAt: string }>(orders: T[]): T[] {
+// Priority: Urgent Pending (pending >= 30s) → Normal Pending → Accepted → Preparing → Ready → Delivered → Completed
+// Inside each group: sorted by latest activity (updatedAt || createdAt) descending
+export function sortKDSOrders<T extends { status: string; createdAt: string; updatedAt?: string }>(orders: T[]): T[] {
   return [...orders].sort((a, b) => {
     const nowMs = Date.now();
     const ageA = nowMs - new Date(a.createdAt).getTime();
@@ -54,7 +61,7 @@ export function sortKDSOrders<T extends { status: string; createdAt: string }>(o
     const isPendingA = a.status === "PENDING" || a.status === "RECEIVED";
     const isPendingB = b.status === "PENDING" || b.status === "RECEIVED";
 
-    // Urgent pending (>30s) always first
+    // Urgent pending (>= 30s) always first
     const urgentA = isPendingA && ageA >= 30_000;
     const urgentB = isPendingB && ageB >= 30_000;
 
@@ -65,29 +72,29 @@ export function sortKDSOrders<T extends { status: string; createdAt: string }>(o
     const weightB = KDS_STATUS_WEIGHT[b.status] ?? 99;
     if (weightA !== weightB) return weightA - weightB;
 
-    // Newest first within same status group
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    // Most recent activity first within same status group
+    return getLatestTimestamp(b) - getLatestTimestamp(a);
   });
 }
 
 // ─── Waiter Ready Order Sorting ─────────────────────────────────────────────
-// Ready → Picked Up → Delivered → Completed; newest first inside each group
-export function sortWaiterOrders<T extends { status: string; createdAt: string }>(orders: T[]): T[] {
+// Ready → Picked Up → Delivered → Completed; most recent activity first inside each group
+export function sortWaiterOrders<T extends { status: string; createdAt: string; updatedAt?: string }>(orders: T[]): T[] {
   return [...orders].sort((a, b) => {
     const weightA = WAITER_STATUS_WEIGHT[a.status] ?? 99;
     const weightB = WAITER_STATUS_WEIGHT[b.status] ?? 99;
     if (weightA !== weightB) return weightA - weightB;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return getLatestTimestamp(b) - getLatestTimestamp(a);
   });
 }
 
 // ─── Admin Order Sorting ─────────────────────────────────────────────────────
-export function sortAdminOrders<T extends { status: string; createdAt: string }>(orders: T[]): T[] {
+export function sortAdminOrders<T extends { status: string; createdAt: string; updatedAt?: string }>(orders: T[]): T[] {
   return [...orders].sort((a, b) => {
     const weightA = ADMIN_STATUS_WEIGHT[a.status] ?? 99;
     const weightB = ADMIN_STATUS_WEIGHT[b.status] ?? 99;
     if (weightA !== weightB) return weightA - weightB;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return getLatestTimestamp(b) - getLatestTimestamp(a);
   });
 }
 

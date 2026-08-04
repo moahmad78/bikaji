@@ -11,6 +11,7 @@ import {
   getAgingGlowClass,
   getAgingBadgeClass,
 } from "@/lib/order-priority";
+import { UrgentOrdersCounter, AgingFilterType } from "@/components/UrgentOrdersCounter";
 import {
   ChefHat,
   Volume2,
@@ -206,6 +207,7 @@ export default function KitchenPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedPriority, setSelectedPriority] = useState<string>("ALL");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [urgentFilter, setUrgentFilter] = useState<AgingFilterType>("ALL");
   
   // View Tabs: Active Queue vs Order History
   const [activeViewTab, setActiveViewTab] = useState<"live" | "history">("live");
@@ -390,11 +392,8 @@ export default function KitchenPage() {
       console.log("[KDS] Realtime order received:", newOrder.orderNumber || newOrder.id);
       playChime("new");
       setOrders(prev => {
-        const exists = prev.some(o => o.id === newOrder.id);
-        if (exists) {
-          return prev.map(o => o.id === newOrder.id ? { ...o, ...newOrder } : o);
-        }
-        return [newOrder, ...prev];
+        const filtered = prev.filter(o => o.id !== newOrder.id);
+        return [newOrder, ...filtered];
       });
       // Mark as new — auto-remove glow after 10s
       setNewOrderIds(prev => { const next = new Set(prev); next.add(newOrder.id); return next; });
@@ -407,16 +406,10 @@ export default function KitchenPage() {
       if (!updatedOrder || !updatedOrder.id) return;
       console.log("[KDS] Realtime order update:", updatedOrder.id, updatedOrder.status);
       setOrders(prev => {
-        const exists = prev.some(o => o.id === updatedOrder.id);
-        if (!exists) {
-          return [updatedOrder, ...prev];
-        }
-        return prev.map(o => {
-          if (o.id === updatedOrder.id) {
-            return { ...o, ...updatedOrder };
-          }
-          return o;
-        });
+        const existing = prev.find(o => o.id === updatedOrder.id);
+        const mergedOrder = existing ? { ...existing, ...updatedOrder } : updatedOrder;
+        const filtered = prev.filter(o => o.id !== updatedOrder.id);
+        return [mergedOrder, ...filtered];
       });
       // Mark as status-changed — flash for 3s
       setUpdatedOrderIds(prev => { const next = new Set(prev); next.add(updatedOrder.id); return next; });
@@ -824,11 +817,21 @@ export default function KitchenPage() {
         if (!hasItemInCategory) return false;
       }
 
+      // 5. Urgent Counter Filter
+      if (urgentFilter !== "ALL") {
+        const isPending = o.status === "PENDING" || o.status === "RECEIVED";
+        if (!isPending) return false;
+        const ageMs = Date.now() - new Date(o.createdAt).getTime();
+        if (urgentFilter === "URGENT_ALL" && ageMs < 30_000) return false;
+        if (urgentFilter === "WAITING_30S" && (ageMs < 30_000 || ageMs >= 120_000)) return false;
+        if (urgentFilter === "CRITICAL_2M" && ageMs < 120_000) return false;
+      }
+
       return true;
     });
     // Use shared priority sorter: urgent pending → normal pending → accepted → cooking → ready → completed; newest first inside each group
     return sortKDSOrders(baseFiltered);
-  }, [orders, searchQuery, selectedStatus, selectedPriority, selectedCategory, tick]);
+  }, [orders, searchQuery, selectedStatus, selectedPriority, selectedCategory, urgentFilter, tick]);
 
   // Live Statistics Header counts
   const stats = useMemo(() => {
@@ -974,8 +977,13 @@ export default function KitchenPage() {
           </div>
         </div>
 
-        {/* Live Counters */}
+        {/* Live Counters & Urgent Alerts */}
         <div className="flex flex-wrap items-center gap-2">
+          <UrgentOrdersCounter
+            orders={orders}
+            activeFilter={urgentFilter}
+            onFilterChange={setUrgentFilter}
+          />
           <div className="px-4 py-2 rounded-lg bg-[#251416] border border-[#361f22] flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
             <span className="text-xs text-zinc-300 font-bold">🟠 New Orders:</span>

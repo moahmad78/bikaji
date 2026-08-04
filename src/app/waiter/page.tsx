@@ -341,14 +341,19 @@ export default function WaiterDashboard() {
       if (!readyOrder || !readyOrder.id) return;
       playAlertSound("order-ready");
       setReadyOrders(prev => {
-        if (prev.some(o => o.id === readyOrder.id)) return prev;
-        return [readyOrder, ...prev];
+        const filtered = prev.filter(o => o.id !== readyOrder.id);
+        return [readyOrder, ...filtered];
       });
       setTables(prev => prev.map(t => {
         if (t.id === readyOrder.tableId) {
+          const updatedOrders = t.orders.map(o => o.id === readyOrder.id ? readyOrder : o);
+          // If order wasn't in table orders array, prepend it
+          if (!t.orders.some(o => o.id === readyOrder.id)) {
+            updatedOrders.unshift(readyOrder);
+          }
           return {
             ...t,
-            orders: t.orders.map(o => o.id === readyOrder.id ? readyOrder : o)
+            orders: updatedOrders
           };
         }
         return t;
@@ -363,9 +368,8 @@ export default function WaiterDashboard() {
       setReadyOrders(prev => prev.filter(o => o.id !== targetId));
       if (data.order) {
         setMyDeliveries(prev => {
-          const exists = prev.find(o => o.id === data.order.id);
-          if (!exists) return [data.order, ...prev];
-          return prev;
+          const filtered = prev.filter(o => o.id !== data.order.id);
+          return [data.order, ...filtered];
         });
         handleUpdateOrderInTables(data.order);
       }
@@ -377,10 +381,8 @@ export default function WaiterDashboard() {
       if (!newOrder || !newOrder.id) return;
       setTables(prev => prev.map(t => {
         if (t.id === newOrder.tableId) {
-          const exists = t.orders.find((o: any) => o.id === newOrder.id);
-          if (!exists) {
-            return { ...t, orders: [newOrder, ...t.orders], status: "OCCUPIED" };
-          }
+          const filtered = t.orders.filter((o: any) => o.id !== newOrder.id);
+          return { ...t, orders: [newOrder, ...filtered], status: "OCCUPIED" };
         }
         return t;
       }));
@@ -392,9 +394,12 @@ export default function WaiterDashboard() {
       if (!updatedOrder || !updatedOrder.id) return;
       setTables(prev => prev.map(t => {
         if (t.id === updatedOrder.tableId || t.orders.some((o: any) => o.id === updatedOrder.id)) {
+          const existing = t.orders.find((o: any) => o.id === updatedOrder.id);
+          const merged = existing ? { ...existing, ...updatedOrder } : updatedOrder;
+          const filtered = t.orders.filter((o: any) => o.id !== updatedOrder.id);
           return {
             ...t,
-            orders: t.orders.map((o: any) => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o)
+            orders: [merged, ...filtered]
           };
         }
         return t;

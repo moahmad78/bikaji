@@ -27,6 +27,7 @@ import {
   getAdminStaff,
   assignWaiterToTable
 } from "@/actions/admin";
+import { sortAdminOrders } from "@/lib/order-priority";
 import { authClient } from "@/lib/auth-client";
 
 export default function AdminOrdersPage() {
@@ -103,12 +104,10 @@ export default function AdminOrdersPage() {
     const handleEventTrigger = (updatedOrder: any) => {
       if (!updatedOrder || !updatedOrder.id) return;
       setOrders(prev => {
-        const exists = prev.find(o => o.id === updatedOrder.id);
-        if (exists) {
-          return prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o);
-        } else {
-          return [updatedOrder, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        }
+        const existing = prev.find(o => o.id === updatedOrder.id);
+        const mergedOrder = existing ? { ...existing, ...updatedOrder } : updatedOrder;
+        const filtered = prev.filter(o => o.id !== updatedOrder.id);
+        return [mergedOrder, ...filtered];
       });
       // Optionally update selectedOrder if it's the one currently open
       setSelectedOrder((prev: any) => (prev?.id === updatedOrder.id ? { ...prev, ...updatedOrder } : prev));
@@ -224,7 +223,7 @@ export default function AdminOrdersPage() {
 
   // Filters application
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
+    const filtered = orders.filter(order => {
       const matchesSearch = 
         order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         order.customerName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -234,6 +233,7 @@ export default function AdminOrdersPage() {
 
       return true;
     });
+    return sortAdminOrders(filtered);
   }, [orders, searchQuery, statusFilter]);
 
   if (loading) {
