@@ -271,6 +271,15 @@ export default function MenuPage() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 10000,
+      auth: {
+        role: "CUSTOMER",
+      },
+    });
+
+    socket.on("connect", () => {
+      if (tableId) {
+        socket.emit("subscribe-table", tableId);
+      }
     });
 
     const handleOrderUpdate = (updatedOrder: any) => {

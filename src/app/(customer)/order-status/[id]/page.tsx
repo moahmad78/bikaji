@@ -200,18 +200,16 @@ export default function OrderStatusPage() {
       });
     };
 
-    socket.on("ORDER_ACCEPTED", handleRealtimeUpdate);
-    socket.on("ORDER_COOKING", handleRealtimeUpdate);
-    socket.on("ORDER_READY", handleRealtimeUpdate);
-    socket.on("WAITER_ASSIGNED", handleRealtimeUpdate);
-    socket.on("ORDER_PICKED_UP", handleRealtimeUpdate);
-    socket.on("ORDER_DELIVERED", handleRealtimeUpdate);
-    socket.on("ORDER_COMPLETED", handleRealtimeUpdate);
-    socket.on("ORDER_DELAYED", handleRealtimeUpdate);
-    socket.on("ORDER_CANCELLED", handleRealtimeUpdate);
-    socket.on("ORDER_UPDATED", handleRealtimeUpdate);
+    const events = [
+      "ORDER_CREATED", "ORDER_ACCEPTED", "ORDER_COOKING", "ORDER_READY",
+      "WAITER_ASSIGNED", "ORDER_PICKED_UP", "ORDER_DELIVERED",
+      "ORDER_COMPLETED", "ORDER_DELAYED", "ORDER_CANCELLED", "ORDER_UPDATED",
+    ];
+
+    events.forEach(evt => socket.on(evt, handleRealtimeUpdate));
 
     return () => {
+      events.forEach(evt => socket.off(evt, handleRealtimeUpdate));
       socket.disconnect();
     };
   }, [orderId]);
