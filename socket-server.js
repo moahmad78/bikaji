@@ -6,7 +6,7 @@ const RoomManager = require("./socket/RoomManager");
 const AuthenticationLayer = require("./socket/AuthenticationLayer");
 const EventManager = require("./socket/EventManager");
 
-const PORT = process.env.SOCKET_PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 // Metrics tracking indicators
 let totalEventsProcessed = 0;

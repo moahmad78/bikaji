@@ -6,6 +6,7 @@
     "dev": "concurrently \"node socket-server.js\" \"next dev\"",
     "build": "prisma generate && next build",
     "start": "next start",
+    "socket": "node socket-server.js",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy"

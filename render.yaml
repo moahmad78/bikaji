@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: bikaji-socket
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node socket-server.js
+    healthCheckPath: /metrics
+    envVars:
+      - key: NODE_ENV
+        value: production

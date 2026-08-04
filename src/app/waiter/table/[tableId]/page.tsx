@@ -129,7 +129,14 @@ export default function TableDetailsPage() {
   // Sockets integration for real-time table syncing
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
-    const socket = io(socketUrl, { reconnectionAttempts: 3, timeout: 2000 });
+    const socket = io(socketUrl, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    });
     socketRef.current = socket;
 
     socket.on("connect", () => {
