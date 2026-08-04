@@ -13,7 +13,10 @@ export async function proxy(request: NextRequest) {
 
   if (isAdminSubPath || isKitchenSubPath || isWaiterSubPath || isBillingSubPath) {
     const sessionCookieName = "better-auth.session_token";
-    const sessionToken = request.cookies.get(sessionCookieName) || request.cookies.get(`__secure-${sessionCookieName}`);
+    const sessionToken = 
+      request.cookies.get(sessionCookieName) || 
+      request.cookies.get(`__Secure-${sessionCookieName}`) ||
+      request.cookies.get(`__secure-${sessionCookieName}`);
 
     // If no session token cookie is found, redirect directly to portal entry login pages
     if (!sessionToken) {
