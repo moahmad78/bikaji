@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  sortKDSOrders,
+  getOrderAgingInfo,
+  getAgingBorderClass,
+  getAgingGlowClass,
+  getAgingBadgeClass,
+} from "@/lib/order-priority";
 import {
   ChefHat,
   Volume2,
@@ -120,6 +127,10 @@ export default function KitchenPage() {
   
   // State
   const [orders, setOrders] = useState<Order[]>([]);
+  // IDs of orders that just arrived — show glow + NEW badge for 10 seconds
+  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
+  // IDs of orders that just changed status — show flash for 3 seconds
+  const [updatedOrderIds, setUpdatedOrderIds] = useState<Set<string>>(new Set());
 
   // 1. Session verification on mount
   useEffect(() => {
@@ -385,6 +396,11 @@ export default function KitchenPage() {
         }
         return [newOrder, ...prev];
       });
+      // Mark as new — auto-remove glow after 10s
+      setNewOrderIds(prev => { const next = new Set(prev); next.add(newOrder.id); return next; });
+      setTimeout(() => {
+        setNewOrderIds(prev => { const next = new Set(prev); next.delete(newOrder.id); return next; });
+      }, 10_000);
     };
 
     const handleUpdateOrder = (updatedOrder: any) => {
@@ -402,6 +418,11 @@ export default function KitchenPage() {
           return o;
         });
       });
+      // Mark as status-changed — flash for 3s
+      setUpdatedOrderIds(prev => { const next = new Set(prev); next.add(updatedOrder.id); return next; });
+      setTimeout(() => {
+        setUpdatedOrderIds(prev => { const next = new Set(prev); next.delete(updatedOrder.id); return next; });
+      }, 3_000);
     };
 
     // Subscribed Event streams
@@ -755,7 +776,7 @@ export default function KitchenPage() {
 
   // Apply filters and sorting
   const filteredOrders = useMemo(() => {
-    return orders.filter(o => {
+    const baseFiltered = orders.filter(o => {
       // 1. Search Query (Table No, Order No, Item Name)
       const matchesSearch = 
         o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -804,15 +825,9 @@ export default function KitchenPage() {
       }
 
       return true;
-    }).sort((a, b) => {
-      // Sort by priority level (highest first), then by oldest creation date
-      const priorityA = getOrderPriority(a).level;
-      const priorityB = getOrderPriority(b).level;
-      if (priorityA !== priorityB) {
-        return priorityB - priorityA;
-      }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
+    // Use shared priority sorter: urgent pending → normal pending → accepted → cooking → ready → completed; newest first inside each group
+    return sortKDSOrders(baseFiltered);
   }, [orders, searchQuery, selectedStatus, selectedPriority, selectedCategory, tick]);
 
   // Live Statistics Header counts
@@ -1418,22 +1433,38 @@ export default function KitchenPage() {
                 const isAccepted = order.status === "ACCEPTED";
                 const isPreparing = order.status === "PREPARING";
                 const isReady = order.status === "READY";
+                const isNew = newOrderIds.has(order.id);
+                const isUpdated = updatedOrderIds.has(order.id);
+                const aging = getOrderAgingInfo(order.status, order.createdAt, Date.now());
+
+                // Build border + glow classes
+                let cardBorderClass = "border-[#361f22] hover:border-[#baa47f]/25";
+                let cardGlowClass = "";
+                if (isNew) {
+                  cardBorderClass = "border-amber-500/80";
+                  cardGlowClass = "shadow-[0_0_24px_rgba(245,158,11,0.35),0_0_0_1px_rgba(245,158,11,0.15)]";
+                } else if (isUpdated) {
+                  cardBorderClass = "border-blue-500/60";
+                  cardGlowClass = "shadow-[0_0_16px_rgba(59,130,246,0.25)]";
+                } else if (sla.isLate) {
+                  cardBorderClass = "border-red-600/40";
+                  cardGlowClass = "shadow-red-950/20";
+                } else if (sla.isUrgent) {
+                  cardBorderClass = "border-orange-500/40";
+                } else if (aging.level > 0) {
+                  cardBorderClass = getAgingBorderClass(aging.level);
+                  cardGlowClass = getAgingGlowClass(aging.level);
+                }
 
                 return (
                   <motion.div
                     key={order.id}
                     layoutId={order.id}
-                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                    initial={{ opacity: 0, scale: 0.97, y: -12 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: -15 }}
-                    transition={{ duration: 0.25 }}
-                    className={`bg-[#1c0f11] rounded-xl border-2 flex flex-col overflow-hidden shadow-medium relative group ${
-                      sla.isLate
-                        ? "border-red-600/40 shadow-red-950/20"
-                        : sla.isUrgent
-                        ? "border-orange-500/40"
-                        : "border-[#361f22] hover:border-[#baa47f]/25"
-                    }`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                    className={`bg-[#1c0f11] rounded-xl border-2 flex flex-col overflow-hidden shadow-medium relative group transition-shadow duration-700 ${cardBorderClass} ${cardGlowClass}`}
                   >
                     {/* SLA Progress Bar at top */}
                     {order.expectedReadyAt && !isReady && (
@@ -1446,6 +1477,36 @@ export default function KitchenPage() {
                         />
                       </div>
                     )}
+
+                    {/* NEW ORDER badge — top-right corner, auto-fades after 10s */}
+                    <AnimatePresence>
+                      {isNew && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.7, y: -4 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.3 }}
+                          className="absolute top-2.5 right-2.5 z-10 bg-emerald-500 text-white text-[8px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-lg"
+                        >
+                          🟢 NEW ORDER
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* AGING badge — visible only when level>0 AND not new AND pending */}
+                    <AnimatePresence>
+                      {!isNew && aging.isActive && (
+                        <motion.div
+                          key={`aging-${aging.level}`}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0 }}
+                          className={`absolute top-2.5 right-2.5 z-10 text-[8px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getAgingBadgeClass(aging.level)}`}
+                        >
+                          {aging.labelEmoji} {aging.label}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {/* Card Header */}
                     <div className="p-4 bg-[#14080a] border-b border-[#361f22] flex items-center justify-between gap-3">
@@ -1465,6 +1526,12 @@ export default function KitchenPage() {
                             {order.customerName || "Guest"}
                           </span>
                         </div>
+                        {/* Aging delayed display */}
+                        {aging.level >= 3 && (
+                          <div className="mt-1 text-[9px] font-bold text-red-400">
+                            Delayed by: {aging.ageString}
+                          </div>
+                        )}
                       </div>
 
                       {/* Timers */}
