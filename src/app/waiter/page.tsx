@@ -34,6 +34,7 @@ import {
 import Image from "next/image";
 import { getWaiterDashboardData, resolveServiceRequest, serveOrder, acceptDelivery, deliverOrder, getOrCreateWaiterProfile } from "@/actions/waiter";
 import { authClient } from "@/lib/auth-client";
+import ThermalInvoice from "@/components/ThermalInvoice";
 
 // Local Interfaces
 interface TableSession {
@@ -47,6 +48,7 @@ interface OrderItem {
   id: string;
   name: string;
   quantity: number;
+  price: number;
 }
 
 interface Order {
@@ -54,6 +56,7 @@ interface Order {
   orderNumber: string;
   status: string;
   paymentStatus: string;
+  paymentMethod: string;
   finalAmount: number;
   customerName?: string | null;
   kitchenNotes?: string | null;
@@ -129,10 +132,11 @@ export default function WaiterDashboard() {
   const [waiterProfile, setWaiterProfile] = useState<any>(null);
   
   // Controls
-  const [activeTab, setActiveTab] = useState<"alerts" | "my-deliveries" | "history" | "requests" | "tables" | "account">("alerts");
+  const [activeTab, setActiveTab] = useState<"alerts" | "my-deliveries" | "history" | "requests" | "tables" | "account" | "payments">("alerts");
   const [historyDateFilter, setHistoryDateFilter] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK">("TODAY");
   const [historySearchQuery, setHistorySearchQuery] = useState<string>("");
   const [selectedHistoryOrder, setSelectedHistoryOrder] = useState<Order | null>(null);
+  const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<Order | null>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -537,15 +541,14 @@ export default function WaiterDashboard() {
       const order = pendingCashRequests.find(o => o.id === orderId);
       if (!order) return;
 
-      const confirmed = window.confirm(`Collect Cash\n\nOrder #${order.orderNumber}\nAmount: ₹${order.finalAmount}\n\nHas the customer paid ₹${order.finalAmount} in cash?`);
-      if (!confirmed) return;
-
       setConfirmPaymentLoading(true);
       try {
         const { confirmPayment } = await import("@/actions/payment");
         const res = await confirmPayment(orderId, "CASH");
-        if (res.success) {
-          alert(`Payment of ₹${order.finalAmount} confirmed!`);
+        if (res.success && res.order) {
+          // Keep it in selectedPaymentOrder to show the receipt, but update its status to PAID
+          setSelectedPaymentOrder(res.order as unknown as Order);
+          // Remove from pending list
           setPendingCashRequests(prev => prev.filter(o => o.id !== orderId));
         } else {
           alert(res.error || "Failed to confirm payment");
@@ -1123,66 +1126,6 @@ export default function WaiterDashboard() {
         {activeTab === "alerts" && (
           <div className="flex flex-col gap-8">
             
-            {/* CASH COLLECTIONS SECTION */}
-            {pendingCashRequests.length > 0 && (
-              <div className="flex flex-col gap-4">
-                <div className="flex justify-between items-center pb-2 border-b border-[#361f22]">
-                  <h2 className="text-sm font-display font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
-                    <IndianRupee className="w-4 h-4 text-emerald-500 animate-pulse" /> 💵 Pending Cash Collections ({pendingCashRequests.length})
-                  </h2>
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase">
-                    Tap to confirm payment
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <AnimatePresence mode="popLayout">
-                    {pendingCashRequests.map(order => (
-                      <motion.div
-                        key={`cash-${order.id}`}
-                        layoutId={`cash-${order.id}`}
-                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                        className="bg-[#1c0f11] rounded-xl border-2 p-4 flex flex-col justify-between gap-3 shadow-modal border-emerald-500/40 ring-1 ring-emerald-500/20"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg font-extrabold text-white">
-                                TABLE {order.table?.number || "?"}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded border uppercase bg-emerald-500/20 text-emerald-400 border-emerald-500/40">
-                                CASH
-                              </span>
-                            </div>
-                            <span className="text-xs text-zinc-300 block mt-1 font-bold">
-                              Order #{order.orderNumber}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-2xl font-black text-emerald-400 block tracking-tight">
-                              ₹{order.finalAmount?.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-[#251416]">
-                          <button
-                            onClick={() => handleConfirmCashPayment(order.id)}
-                            disabled={confirmPaymentLoading}
-                            className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest transition shadow-md cursor-pointer text-center disabled:opacity-50 flex items-center justify-center gap-2"
-                          >
-                            {confirmPaymentLoading ? "Processing..." : "Confirm Payment Received"}
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </div>
-            )}
-
             {/* KITCHEN ALERTS SECTION */}
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center pb-2 border-b border-[#361f22]">
@@ -1509,6 +1452,96 @@ export default function WaiterDashboard() {
         )}
 
         {/* --- VIEW TAB 4: ACCOUNT / SETTINGS --- */}
+        {activeTab === "payments" && (
+          <div className="flex flex-col gap-8 pb-20">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-xl font-display font-black tracking-tight text-white uppercase flex items-center gap-2">
+                <IndianRupee className="w-5 h-5 text-emerald-500" /> Payments
+              </h1>
+              <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">
+                Cash Payments to Collect
+              </p>
+            </div>
+
+            {pendingCashRequests.length === 0 ? (
+              <div className="bg-[#1c0f11] border border-[#361f22] rounded-xl p-8 flex flex-col items-center justify-center text-center gap-3 shadow-modal mt-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2">
+                  <CheckCircle className="w-6 h-6 text-emerald-500" />
+                </div>
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                  💰 No Pending Payments
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  All cash payments have been collected.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {pendingCashRequests.map(order => (
+                    <motion.div
+                      key={`cash-${order.id}`}
+                      layoutId={`cash-${order.id}`}
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                      className="bg-[#1c0f11] rounded-xl border-2 p-5 flex flex-col justify-between gap-4 shadow-modal border-emerald-500/40 ring-1 ring-emerald-500/20"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-extrabold text-white">
+                              TABLE {order.table?.number || "?"}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded border uppercase bg-emerald-500/20 text-emerald-400 border-emerald-500/40">
+                              CASH
+                            </span>
+                          </div>
+                          <span className="text-xs text-zinc-400 block mt-1 font-bold">
+                            Order #{order.orderNumber}
+                          </span>
+                        </div>
+                        <div className="text-right flex flex-col items-end">
+                          <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Amount Due</span>
+                          <span className="text-2xl font-black text-emerald-400 block tracking-tight">
+                            ₹{order.finalAmount?.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 pt-2 border-t border-[#251416]">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 font-medium">Payment Method:</span>
+                          <span className="text-emerald-400 font-bold">CASH AT TABLE</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 font-medium">Status:</span>
+                          <span className="text-amber-500 font-bold">PAYMENT PENDING</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex flex-col gap-2 border-t border-[#251416]">
+                        <button
+                          onClick={() => setSelectedHistoryOrder(order)}
+                          className="w-full py-2.5 rounded-lg bg-[#251416] hover:bg-[#361f22] text-zinc-300 hover:text-white text-xs font-black uppercase tracking-widest transition shadow-md cursor-pointer text-center flex items-center justify-center border border-[#361f22]"
+                        >
+                          View Order
+                        </button>
+                        <button
+                          onClick={() => setSelectedPaymentOrder(order)}
+                          className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest transition shadow-md cursor-pointer text-center flex items-center justify-center gap-2"
+                        >
+                          Collect Payment
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "account" && (
           <div className="bg-[#1c0f11] rounded-xl border border-[#361f22] p-6 shadow-soft flex flex-col gap-6">
             <div className="flex items-center gap-4 pb-4 border-b border-[#251416]">
@@ -1571,6 +1604,131 @@ export default function WaiterDashboard() {
           </div>
         )}
       </main>
+
+      {/* PAYMENT COLLECTION MODAL */}
+      <AnimatePresence>
+        {selectedPaymentOrder && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#1c0f11] border border-[#361f22] rounded-2xl max-w-sm w-full p-6 flex flex-col gap-5 shadow-modal text-white relative overflow-hidden"
+            >
+              {selectedPaymentOrder.paymentStatus === "PAID" ? (
+                // SUCCESS STATE
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2">
+                    <CheckCircle className="w-8 h-8 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black font-display uppercase tracking-wider text-emerald-400">
+                      Payment Received
+                    </h3>
+                    <p className="text-sm text-zinc-400 mt-1">
+                      ₹{selectedPaymentOrder.finalAmount.toFixed(2)} collected successfully.
+                    </p>
+                  </div>
+                  
+                  {/* Invisible receipt for printing */}
+                  <div className="hidden">
+                    <ThermalInvoice
+                      order={{
+                        orderNumber: selectedPaymentOrder.orderNumber,
+                        customerName: selectedPaymentOrder.customerName || "Walk-in Guest",
+                        createdAt: selectedPaymentOrder.createdAt,
+                        table: selectedPaymentOrder.table,
+                        items: selectedPaymentOrder.items
+                      }}
+                      invoiceNumber={`INV-${selectedPaymentOrder.orderNumber}`}
+                      billingDetails={{
+                        subtotal: selectedPaymentOrder.finalAmount, // simplified
+                        discountAmount: 0,
+                        gstAmount: 0,
+                        cgstAmount: 0,
+                        sgstAmount: 0,
+                        roundOff: 0,
+                        serviceCharge: 0,
+                        finalAmount: selectedPaymentOrder.finalAmount,
+                      }}
+                      settings={{
+                        name: "BIKAJI",
+                        address: "New Delhi, India",
+                        phone: "+91 9999999999",
+                        currency: "₹"
+                      }}
+                      cashierName={session?.user?.name || "Waiter"}
+                      paymentMethod={selectedPaymentOrder.paymentMethod}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 w-full mt-4">
+                    <button
+                      onClick={() => window.print()}
+                      className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest transition flex justify-center items-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" /> Print Receipt
+                    </button>
+                    <button
+                      onClick={() => setSelectedPaymentOrder(null)}
+                      className="w-full py-3 rounded-lg bg-[#251416] hover:bg-[#361f22] text-zinc-300 text-xs font-black uppercase tracking-widest transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // CONFIRMATION STATE
+                <>
+                  <div className="flex justify-between items-start pb-4 border-b border-[#251416]">
+                    <div>
+                      <h3 className="text-lg font-extrabold font-display uppercase tracking-wider text-white flex items-center gap-2">
+                        <IndianRupee className="w-5 h-5 text-emerald-500" /> Collect Cash
+                      </h3>
+                      <p className="text-xs text-zinc-400 font-bold mt-1">
+                        Table {selectedPaymentOrder.table?.number || "?"} · Order #{selectedPaymentOrder.orderNumber}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#14080a] p-5 rounded-xl border border-[#251416] flex flex-col items-center justify-center text-center gap-2">
+                    <span className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-widest">Amount Due</span>
+                    <span className="text-4xl font-black text-emerald-400 tracking-tighter">
+                      ₹{selectedPaymentOrder.finalAmount.toFixed(2)}
+                    </span>
+                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider mt-2 bg-[#1c0f11] border border-[#361f22] px-3 py-1 rounded-full">
+                      Payment Method: CASH
+                    </span>
+                  </div>
+
+                  <div className="text-center px-4">
+                    <p className="text-sm font-bold text-zinc-300">
+                      Has the customer paid <span className="text-white">₹{selectedPaymentOrder.finalAmount.toFixed(2)}</span> in cash?
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-2 border-t border-[#251416]">
+                    <button
+                      onClick={() => handleConfirmCashPayment(selectedPaymentOrder.id)}
+                      disabled={confirmPaymentLoading}
+                      className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest transition shadow-lg cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {confirmPaymentLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirm Payment Received"}
+                    </button>
+                    <button
+                      onClick={() => setSelectedPaymentOrder(null)}
+                      disabled={confirmPaymentLoading}
+                      className="w-full py-3 rounded-xl bg-transparent hover:bg-[#251416] text-zinc-400 hover:text-white text-xs font-black uppercase tracking-widest transition cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* TABLE HISTORY MODAL */}
       <AnimatePresence>
@@ -1708,6 +1866,20 @@ export default function WaiterDashboard() {
             {readyOrders.length > 0 && (
               <span className="absolute -top-1.5 -right-2 px-1.5 py-0.5 rounded-full bg-amber-600 text-white text-[8px] font-extrabold border border-[#361f22]">
                 {readyOrders.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("payments")}
+            className={`flex flex-col items-center gap-1 transition cursor-pointer relative ${
+              activeTab === "payments" ? "text-gold-500 scale-105" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <IndianRupee className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] font-extrabold uppercase tracking-wide">Payments</span>
+            {pendingCashRequests.length > 0 && (
+              <span className="absolute -top-1.5 -right-2 px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-extrabold border border-[#361f22] animate-pulse">
+                {pendingCashRequests.length}
               </span>
             )}
           </button>
