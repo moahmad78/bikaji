@@ -166,7 +166,6 @@ export default function AdminPaymentsPage() {
       const res = await confirmPayment(orderId, "CASH");
       if (res.success && res.order) {
         setSelectedOrder(res.order);
-        alert(`Payment of ₹${res.order.finalAmount} confirmed!`);
         loadData();
       } else {
         alert(res.error || "Failed to confirm payment.");

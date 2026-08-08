@@ -50,6 +50,7 @@ export async function confirmPayment(orderId: string, expectedMethod: string) {
     if (fullOrderRes.success && fullOrderRes.order) {
       await publishSocketEvent("PAYMENT_COMPLETED", fullOrderRes.order);
       await publishSocketEvent("ORDER_UPDATED", fullOrderRes.order);
+      return { success: true, order: fullOrderRes.order };
     }
 
     return { success: true, order: updatedOrder };

@@ -8,7 +8,7 @@ interface ThermalInvoiceProps {
     orderNumber: string;
     customerName: string;
     createdAt: string | Date;
-    table: { number: number };
+    table?: { number: number };
     items: { name: string; quantity: number; price: number }[];
   };
   invoiceNumber: string;
@@ -118,7 +118,7 @@ export default function ThermalInvoice({
           </div>
           <div className="flex justify-between">
             <span>TABLE:</span>
-            <span className="font-bold">TABLE {order.table.number}</span>
+            <span className="font-bold">TABLE {order.table?.number || "N/A"}</span>
           </div>
           <div className="flex justify-between">
             <span>CASHIER:</span>
