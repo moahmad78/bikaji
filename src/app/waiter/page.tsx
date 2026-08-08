@@ -1632,7 +1632,7 @@ export default function WaiterDashboard() {
                   </div>
                   
                   {/* Invisible receipt for printing */}
-                  <div className="hidden">
+                  <div className="hidden print:block">
                     <ThermalInvoice
                       order={{
                         orderNumber: selectedPaymentOrder.orderNumber,
