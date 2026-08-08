@@ -369,13 +369,20 @@ export default function AdminOrdersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[8px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                        order.paymentStatus === "PAID"
-                          ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
-                          : "bg-amber-600/10 border-amber-650/20 text-amber-500"
-                      }`}>
-                        {order.paymentStatus}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`text-[8px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                          order.paymentStatus === "PAID"
+                            ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
+                            : "bg-amber-600/10 border-amber-650/20 text-amber-500"
+                        }`}>
+                          {order.paymentStatus}
+                        </span>
+                        {order.paymentStatus === "PAID" && order.paidBy && (
+                          <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
+                            By {order.paidBy}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 font-mono font-extrabold text-white">
                       ₹{order.finalAmount.toFixed(0)}
