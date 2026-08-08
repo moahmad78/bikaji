@@ -21,7 +21,9 @@ import {
   Menu,
   X,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  User,
+  CreditCard
 } from "lucide-react";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
@@ -230,6 +232,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const sidebarLinks = [
     { label: "Dashboard",    path: "/admin",          icon: LayoutDashboard },
     { label: "Orders",       path: "/admin/orders",   icon: Sparkles        },
+    { label: "Payments",     path: "/admin/payments", icon: CreditCard      },
+    { label: "Customers",    path: "/admin/customers",icon: User            },
     { label: "Tables & QR",  path: "/admin/tables",   icon: Smartphone      },
     { label: "Menu Catalog", path: "/admin/menu",     icon: Utensils        },
     { label: "Coupons",      path: "/admin/coupons",  icon: Tag             },

@@ -479,6 +479,8 @@ model Order {
   deliveryDuration Int?
   waiterId         String?
   waiterName       String?
+  paidAt           DateTime?
+  paidBy           String?
   deletedAt        DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -912,6 +914,7 @@ enum PaymentMethod {
   CARD
   SPLIT_BILL
   PAY_LATER
+  PAY_ON_EXIT
 }
 
 enum RequestType {

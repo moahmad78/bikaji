@@ -127,6 +127,7 @@ export default function AdminDashboardHome() {
       { name: "UPI", color: "#baa47f", value: methods.UPI },
       { name: "CASH", color: "#3b82f6", value: methods.CASH },
       { name: "CARD", color: "#10b981", value: methods.CARD },
+      { name: "PAY ON EXIT", color: "#f59e0b", value: methods.PAY_ON_EXIT || 0 },
       { name: "SPLIT", color: "#a855f7", value: methods.SPLIT_BILL },
     ];
 

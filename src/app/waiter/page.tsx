@@ -28,7 +28,8 @@ import {
   FileText,
   Volume2,
   VolumeX,
-  Plus
+  Plus,
+  IndianRupee
 } from "lucide-react";
 import Image from "next/image";
 import { getWaiterDashboardData, resolveServiceRequest, serveOrder, acceptDelivery, deliverOrder, getOrCreateWaiterProfile } from "@/actions/waiter";
@@ -108,10 +109,12 @@ export default function WaiterDashboard() {
   const [password, setPassword] = useState<string>("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState<boolean>(false);
+  const [confirmPaymentLoading, setConfirmPaymentLoading] = useState<boolean>(false);
 
   // Operational State
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [pendingRequests, setPendingRequests] = useState<ServiceRequest[]>([]);
+  const [pendingCashRequests, setPendingCashRequests] = useState<Order[]>([]);
   const [readyOrders, setReadyOrders] = useState<Order[]>([]);
   const [myDeliveries, setMyDeliveries] = useState<Order[]>([]);
   const [deliveryHistory, setDeliveryHistory] = useState<Order[]>([]);
@@ -213,6 +216,7 @@ export default function WaiterDashboard() {
       if (res.success && res.tables) {
         setTables(res.tables as any);
         setPendingRequests(res.pendingRequests as any);
+        setPendingCashRequests((res as any).pendingCashRequests || []);
         setReadyOrders(res.readyOrders as any);
         if ((res as any).activeDeliveries) {
           setMyDeliveries((res as any).activeDeliveries as any);
@@ -420,8 +424,20 @@ export default function WaiterDashboard() {
     socket.on("ORDER_DELIVERED", handleServedOrder);
     socket.on("ORDER_COMPLETED", handleServedOrder);
 
+    socket.on("PAYMENT_CASH_REQUESTED", (order: any) => {
+      if (!order || !order.id) return;
+      playAlertSound("new-request");
+      setPendingCashRequests(prev => {
+        if (prev.find(o => o.id === order.id)) return prev;
+        return [...prev, order];
+      });
+    });
+
     socket.on("PAYMENT_COMPLETED", (updatedOrder: any) => {
       handleUpdateOrderInTables(updatedOrder);
+      if (updatedOrder && updatedOrder.id) {
+        setPendingCashRequests(prev => prev.filter(o => o.id !== updatedOrder.id));
+      }
     });
 
     socket.on("TABLE_CLOSED", (tableData: any) => {
@@ -515,6 +531,32 @@ export default function WaiterDashboard() {
   };
 
   // Core actions
+  const handleConfirmCashPayment = async (orderId: string) => {
+      if (!session?.user || confirmPaymentLoading) return;
+      
+      const order = pendingCashRequests.find(o => o.id === orderId);
+      if (!order) return;
+
+      const confirmed = window.confirm(`Collect Cash\n\nOrder #${order.orderNumber}\nAmount: ₹${order.finalAmount}\n\nHas the customer paid ₹${order.finalAmount} in cash?`);
+      if (!confirmed) return;
+
+      setConfirmPaymentLoading(true);
+      try {
+        const { confirmPayment } = await import("@/actions/payment");
+        const res = await confirmPayment(orderId, "CASH");
+        if (res.success) {
+          alert(`Payment of ₹${order.finalAmount} confirmed!`);
+          setPendingCashRequests(prev => prev.filter(o => o.id !== orderId));
+        } else {
+          alert(res.error || "Failed to confirm payment");
+        }
+      } catch (err: any) {
+        alert(err.message || "Failed to confirm payment");
+      } finally {
+        setConfirmPaymentLoading(false);
+      }
+  };
+
   const handleResolveAlert = async (requestId: string) => {
     // Optimistic UI updates
     setPendingRequests(prev => prev.filter(r => r.id !== requestId));
@@ -1077,13 +1119,76 @@ export default function WaiterDashboard() {
           </div>
         )}
 
-        {/* --- VIEW TAB: INCOMING KITCHEN ALERTS (READY FOR PICKUP) --- */}
+        {/* --- VIEW TAB: INCOMING KITCHEN ALERTS & CASH COLLECTIONS --- */}
         {activeTab === "alerts" && (
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-center pb-2 border-b border-[#361f22]">
-              <h2 className="text-sm font-display font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
-                <BellRing className="w-4 h-4 text-[#baa47f] animate-bounce" /> 🔔 New Delivery Alerts ({readyOrders.length})
-              </h2>
+          <div className="flex flex-col gap-8">
+            
+            {/* CASH COLLECTIONS SECTION */}
+            {pendingCashRequests.length > 0 && (
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center pb-2 border-b border-[#361f22]">
+                  <h2 className="text-sm font-display font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4 text-emerald-500 animate-pulse" /> 💵 Pending Cash Collections ({pendingCashRequests.length})
+                  </h2>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase">
+                    Tap to confirm payment
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <AnimatePresence mode="popLayout">
+                    {pendingCashRequests.map(order => (
+                      <motion.div
+                        key={`cash-${order.id}`}
+                        layoutId={`cash-${order.id}`}
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                        className="bg-[#1c0f11] rounded-xl border-2 p-4 flex flex-col justify-between gap-3 shadow-modal border-emerald-500/40 ring-1 ring-emerald-500/20"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-extrabold text-white">
+                                TABLE {order.table?.number || "?"}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded border uppercase bg-emerald-500/20 text-emerald-400 border-emerald-500/40">
+                                CASH
+                              </span>
+                            </div>
+                            <span className="text-xs text-zinc-300 block mt-1 font-bold">
+                              Order #{order.orderNumber}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-2xl font-black text-emerald-400 block tracking-tight">
+                              ₹{order.finalAmount?.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-[#251416]">
+                          <button
+                            onClick={() => handleConfirmCashPayment(order.id)}
+                            disabled={confirmPaymentLoading}
+                            className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest transition shadow-md cursor-pointer text-center disabled:opacity-50 flex items-center justify-center gap-2"
+                          >
+                            {confirmPaymentLoading ? "Processing..." : "Confirm Payment Received"}
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
+            {/* KITCHEN ALERTS SECTION */}
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-between items-center pb-2 border-b border-[#361f22]">
+                <h2 className="text-sm font-display font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-[#baa47f] animate-bounce" /> 🔔 New Delivery Alerts ({readyOrders.length})
+                </h2>
               <span className="text-[10px] text-zinc-400 font-bold uppercase">
                 Tap Accept Delivery to assign to yourself
               </span>
@@ -1178,6 +1283,7 @@ export default function WaiterDashboard() {
                 </AnimatePresence>
               </div>
             )}
+            </div>
           </div>
         )}
 

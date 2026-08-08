@@ -40,36 +40,55 @@ export default async function ScanPage({ params }: ScanPageProps) {
     return <InvalidQRScreen message="This QR Code has been deactivated by the administrator." />;
   }
 
+  const cookieJar = await cookies();
+  const existingToken = cookieJar.get("customer_session_token")?.value;
+
   // Create or retrieve active Customer Session
   let sessionToken = "";
-  if (table.sessions.length > 0) {
-    // Resume active session
-    sessionToken = table.sessions[0].token;
-  } else {
+
+  if (existingToken) {
+    const existingSession = await db.customerSession.findUnique({
+      where: { token: existingToken }
+    });
+    // Check if it belongs to this table, is active and not expired
+    if (
+      existingSession && 
+      existingSession.isActive && 
+      existingSession.tableId === tableId && 
+      existingSession.expiresAt > new Date()
+    ) {
+       sessionToken = existingToken;
+    }
+  }
+
+  if (!sessionToken) {
     // Generate a secure session token
     sessionToken = `session_${crypto.randomUUID().replace(/-/g, "")}`;
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 4); // Expire after 4 hours of dining
+    
+    const shortId = sessionToken.slice(8, 14).toUpperCase();
 
     await db.customerSession.create({
       data: {
         tableId,
         token: sessionToken,
-        customerName: "Guest",
+        customerName: `Guest #${shortId}`,
         isActive: true,
         expiresAt
       }
     });
 
-    // Update table status to occupied
-    await db.restaurantTable.update({
-      where: { id: tableId },
-      data: { status: "OCCUPIED" }
-    });
+    // Update table status to occupied if it was FREE
+    if (table.status === "FREE") {
+      await db.restaurantTable.update({
+        where: { id: tableId },
+        data: { status: "OCCUPIED" }
+      });
+    }
   }
 
   // Set secure HttpOnly cookie for session tracking
-  const cookieJar = await cookies();
   cookieJar.set("customer_session_token", sessionToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

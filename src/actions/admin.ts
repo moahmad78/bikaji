@@ -133,6 +133,7 @@ export async function getAdminDashboardData() {
       CASH: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.CASH).length,
       CARD: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.CARD).length,
       SPLIT_BILL: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.SPLIT_BILL).length,
+      PAY_ON_EXIT: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.PAY_ON_EXIT).length,
       PAY_LATER: activeOrdersToday.filter(o => o.paymentMethod === PaymentMethod.PAY_LATER).length,
     };
 

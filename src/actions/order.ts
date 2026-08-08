@@ -4,6 +4,8 @@ import db from "@/lib/db";
 import { OrderStatus, PaymentStatus, PaymentMethod, TableStatus } from "@prisma/client";
 import { publishSocketEvent } from "@/lib/socket-helper";
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
 interface SelectedModifierInput {
   id: string;
@@ -166,9 +168,41 @@ export async function submitOrder(input: SubmitOrderInput) {
     const serviceChargeAmount = parseFloat(((netAmount * serviceChargeRate) / 100).toFixed(2));
     const finalAmount = parseFloat((netAmount + gstAmount + serviceChargeAmount).toFixed(2));
 
-    const paymentStatus = paymentMethod === PaymentMethod.PAY_LATER 
-      ? PaymentStatus.PAY_LATER 
-      : PaymentStatus.PENDING;
+    // All orders start as PENDING for CASH and PAY_ON_EXIT
+    const paymentStatus = PaymentStatus.PENDING;
+
+    // Resolve Session & Authentication
+    const cookieJar = await cookies();
+    const customerSessionToken = cookieJar.get("customer_session_token")?.value;
+    
+    let resolvedSessionId: string | undefined = undefined;
+    let resolvedCustomerName = customerName || "Guest";
+
+    if (customerSessionToken) {
+      const activeSession = await db.customerSession.findUnique({
+        where: { token: customerSessionToken }
+      });
+      if (activeSession) {
+        resolvedSessionId = activeSession.id;
+        if (!customerName) {
+          resolvedCustomerName = activeSession.customerName;
+        }
+      }
+    }
+
+    let resolvedCustomerId: string | undefined = undefined;
+    try {
+      const reqHeaders = await headers();
+      const authSession = await auth.api.getSession({ headers: reqHeaders });
+      if (authSession?.user) {
+        resolvedCustomerId = authSession.user.id;
+        if (!customerName && authSession.user.name) {
+          resolvedCustomerName = authSession.user.name;
+        }
+      }
+    } catch (e) {
+      // Ignore auth errors for anonymous guests
+    }
 
     // --- ATOMIC DATABASE TRANSACTION (FAST WRITES ONLY) ---
     const result = await db.$transaction(
@@ -185,7 +219,9 @@ export async function submitOrder(input: SubmitOrderInput) {
             branchId: targetBranchId,
             orderNumber: nextOrderNumber,
             tableId,
-            customerName: customerName || "Guest",
+            sessionId: resolvedSessionId,
+            customerId: resolvedCustomerId,
+            customerName: resolvedCustomerName,
             status: OrderStatus.PENDING,
             paymentStatus,
             paymentMethod,
@@ -243,6 +279,10 @@ export async function submitOrder(input: SubmitOrderInput) {
         const fullOrderRes = await getOrderDetails(result.id);
         if (fullOrderRes.success && fullOrderRes.order) {
           await publishSocketEvent("ORDER_CREATED", fullOrderRes.order);
+          
+          if (paymentMethod === PaymentMethod.CASH) {
+            await publishSocketEvent("PAYMENT_CASH_REQUESTED", fullOrderRes.order);
+          }
         }
       } catch (err) {
         console.error("Failed to publish socket event for new order:", err);

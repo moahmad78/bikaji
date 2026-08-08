@@ -185,6 +185,29 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleConfirmCashPayment = async (orderId: string) => {
+    const confirmAction = confirm("Are you sure you want to mark this order as paid in cash?");
+    if (!confirmAction) return;
+
+    if (!adminUserId) return;
+    setIsProcessingAction(true);
+    try {
+      const { confirmPayment } = await import("@/actions/payment");
+      const res = await confirmPayment(orderId, "CASH");
+      if (res.success && res.order) {
+        setSelectedOrder(res.order);
+        loadData();
+      } else {
+        alert(res.error || "Failed to confirm payment.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error confirming payment.");
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
   const handleAssignWaiter = async () => {
     if (!selectedOrder?.tableId || !assignedWaiterId || !adminUserId) return;
     setIsProcessingAction(true);
@@ -429,9 +452,18 @@ export default function AdminOrdersPage() {
                     })}
                   </div>
 
-                  {/* Void or Refund */}
+                  {/* Void, Refund, Collect Cash */}
                   {selectedOrder.status !== "CANCELLED" && selectedOrder.status !== "REFUNDED" && (
                     <div className="flex gap-2 pt-2 border-t border-[#201011]">
+                      {selectedOrder.paymentStatus === "PENDING" && selectedOrder.paymentMethod === "CASH" && (
+                        <button
+                          onClick={() => handleConfirmCashPayment(selectedOrder.id)}
+                          disabled={isProcessingAction}
+                          className="px-3 py-1.5 rounded bg-emerald-600/10 border border-emerald-600/30 text-emerald-500 text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"
+                        >
+                          Collect Cash
+                        </button>
+                      )}
                       <button
                         onClick={() => handleCancelOrRefund(selectedOrder.id, false)}
                         disabled={isProcessingAction}

@@ -1,20 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Poppins, Inter } from "next/font/google";
+// Removed next/font/google to test if it's causing the hang
+// const poppins = ...
+// const inter = ...
 import { CartProvider } from "@/features/cart/CartContext";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import "./globals.css";
-
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
 
 export const viewport: Viewport = {
   themeColor: "#800020",
@@ -50,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${inter.variable} h-full antialiased`}
+      className={`h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <CartProvider>

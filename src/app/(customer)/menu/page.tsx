@@ -40,7 +40,11 @@ import {
   Copy,
   ArrowRight,
   Tag,
-  Zap
+  Zap,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  LogOut
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -141,7 +145,7 @@ export default function MenuPage() {
   // Cart Drawer & Checkout State
   const [cartOpen, setCartOpen] = useState<boolean>(false);
   const [customerName, setCustomerName] = useState<string>("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.UPI);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [submittingOrder, setSubmittingOrder] = useState<boolean>(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
@@ -1573,7 +1577,7 @@ export default function MenuPage() {
                   key="cart"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-col gap-3 pb-24"
+                  className="flex flex-col gap-3 pb-[88px]"
                 >
                   {/* SECTION 1: ORDER ITEMS COMPACT */}
                   <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col">
@@ -1584,13 +1588,11 @@ export default function MenuPage() {
                     <div className="flex flex-col">
                       {cartItems.map((ci, index) => {
                         return (
-                          <div key={ci.cartItemId} className={`flex items-center justify-between py-2 ${index !== cartItems.length - 1 ? "border-b border-zinc-800/60" : ""}`}>
-                            <div className="flex flex-col">
-                               <div className="flex items-center gap-1.5">
-                                 <span className={`block w-1.5 h-1.5 rounded-full ${ci.isVeg ? "bg-emerald-500" : "bg-rose-500"}`} />
-                                 <h5 className="font-bold text-[13px] text-white leading-tight">{ci.name}</h5>
-                               </div>
-                               <span className="text-[11px] font-bold text-zinc-400 mt-0.5 ml-3">₹{ci.price}</span>
+                          <div key={ci.cartItemId} className={`flex items-center justify-between py-1.5 ${index !== cartItems.length - 1 ? "border-b border-zinc-800/60" : ""}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`block w-1.5 h-1.5 rounded-full ${ci.isVeg ? "bg-emerald-500" : "bg-rose-500"}`} />
+                              <h5 className="font-bold text-[12px] text-white leading-tight">{ci.name}</h5>
+                              <span className="text-[11px] font-bold text-zinc-400">₹{ci.price}</span>
                             </div>
 
                             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-1.5 py-1 shrink-0">
@@ -1608,7 +1610,7 @@ export default function MenuPage() {
                     </div>
                   </section>
 
-                  {/* SECTION 2: QUICK OPTIONS & SPECIAL NOTE */}
+                  {/* SECTION 2: QUICK OPTIONS */}
                   <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-3">
                     <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#baa47f]">
                       Quick Options
@@ -1627,7 +1629,7 @@ export default function MenuPage() {
                                 setKitchenChips(prev => [...prev, chip.label]);
                               }
                             }}
-                            className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
                               isSelected 
                                 ? "bg-[#baa47f]/20 border-[#baa47f] text-[#baa47f]" 
                                 : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white"
@@ -1639,18 +1641,6 @@ export default function MenuPage() {
                         );
                       })}
                     </div>
-                    
-                    {/* SPECIAL NOTE */}
-                    <textarea
-                      value={specialInstructions}
-                      onChange={(e) => {
-                        if (e.target.value.length <= 250) {
-                          setSpecialInstructions(e.target.value);
-                        }
-                      }}
-                      placeholder={"Less oil...\nNo onion...\nBirthday plate..."}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#baa47f] min-h-[60px] resize-none mt-1"
-                    />
                   </section>
                   {/* SECTION 2.5: COUPONS */}
                   <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-3">
@@ -1662,7 +1652,7 @@ export default function MenuPage() {
                     </div>
 
                     {availableCoupons.length > 0 ? (
-                      <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                      <div className="flex flex-row gap-3 overflow-x-auto snap-x custom-scrollbar pb-2">
                         {availableCoupons.map((coupon) => {
                           const isEligible = subtotal >= coupon.minOrderAmount;
                           const isApplied = appliedCoupon?.code === coupon.code;
@@ -1671,26 +1661,26 @@ export default function MenuPage() {
                           return (
                             <div 
                               key={coupon.code} 
-                              className={`p-2.5 rounded-lg border flex justify-between items-center transition ${
+                              className={`snap-center shrink-0 w-[240px] p-3 rounded-xl border flex justify-between items-center transition ${
                                 isApplied 
-                                  ? "bg-emerald-950/30 border-emerald-500/50" 
+                                  ? "bg-emerald-950/40 border-emerald-500/50" 
                                   : isEligible 
                                     ? "bg-zinc-950 border-zinc-800" 
                                     : "bg-zinc-950/50 border-zinc-900 opacity-60"
                               }`}
                             >
                               <div className="flex flex-col">
-                                <span className="font-bold text-xs text-white">{coupon.code}</span>
-                                <span className="text-[10px] text-emerald-400">
+                                <span className="font-bold text-xs text-white tracking-wide">{coupon.code}</span>
+                                <span className="text-[11px] font-bold text-emerald-400 mt-0.5">
                                   {coupon.discountType === "PERCENTAGE" ? `${coupon.discountPercent}% OFF` : `₹${coupon.discountValue} OFF`}
                                   {coupon.maxDiscount ? ` up to ₹${coupon.maxDiscount}` : ""}
                                 </span>
                                 {!isEligible ? (
-                                  <span className="text-[9px] text-rose-400 mt-0.5">
+                                  <span className="text-[10px] font-medium text-rose-400 mt-1">
                                     ₹{amountNeeded.toFixed(2)} more required
                                   </span>
                                 ) : (
-                                  <span className="text-[9px] text-zinc-500 mt-0.5">
+                                  <span className="text-[10px] font-medium text-zinc-500 mt-1">
                                     Min bill ₹{coupon.minOrderAmount}
                                   </span>
                                 )}
@@ -1699,26 +1689,21 @@ export default function MenuPage() {
                               {isApplied ? (
                                 <button 
                                   onClick={() => applyCoupon(null)}
-                                  className="text-[10px] font-bold text-rose-400 border border-rose-400/30 bg-rose-400/10 px-2 py-1 rounded cursor-pointer"
+                                  className="text-[10px] font-black text-rose-400 border border-rose-400/30 bg-rose-400/10 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-rose-400/20 transition"
                                 >
-                                  Remove
+                                  REMOVE
                                 </button>
                               ) : (
                                 <button 
-                                  disabled={!isEligible}
                                   onClick={() => applyCoupon({
                                     code: coupon.code,
                                     discountPercent: coupon.discountPercent,
                                     maxDiscount: coupon.maxDiscount,
                                     minOrderAmount: coupon.minOrderAmount
                                   })}
-                                  className={`text-[10px] font-bold px-2.5 py-1 rounded transition ${
-                                    isEligible 
-                                      ? "bg-[#baa47f] text-black hover:bg-[#c9b592] cursor-pointer shadow-[0_0_10px_rgba(186,164,127,0.2)]" 
-                                      : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                                  }`}
+                                  className={`text-[10px] font-black px-4 py-1.5 rounded-lg transition tracking-wide bg-[#baa47f] text-black hover:bg-[#c9b592] cursor-pointer shadow-[0_0_10px_rgba(186,164,127,0.2)]`}
                                 >
-                                  Apply
+                                  APPLY
                                 </button>
                               )}
                             </div>
@@ -1734,33 +1719,71 @@ export default function MenuPage() {
 
                   {/* SECTION 3: BILL SUMMARY */}
                   <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-2">
-                    <div className="flex flex-col gap-1.5 text-[11px] text-zinc-400">
-                      <div className="flex justify-between">
+                    <div className="flex flex-col gap-1 text-[11px] text-zinc-400">
+                      <div className="flex justify-between py-0.5">
                         <span>Subtotal</span>
                         <span className="font-bold text-white">₹{subtotal.toFixed(2)}</span>
                       </div>
                       
                       {discount > 0 && (
-                        <div className="flex justify-between text-emerald-400 font-bold">
+                        <div className="flex justify-between py-0.5 text-emerald-400 font-bold">
                           <span>Discount Applied</span>
                           <span>-₹{discount.toFixed(2)}</span>
                         </div>
                       )}
                       
-                      <div className="flex justify-between">
+                      <div className="flex justify-between py-0.5">
                         <span>GST (5%)</span>
                         <span className="font-bold text-white">₹{gstAmount.toFixed(2)}</span>
                       </div>
                       
-                      <div className="flex justify-between">
+                      <div className="flex justify-between py-0.5">
                         <span>Service Charge (5%)</span>
                         <span className="font-bold text-white">₹{serviceChargeAmount.toFixed(2)}</span>
                       </div>
                       
-                      <div className="flex justify-between text-sm font-extrabold text-white pt-2 border-t border-zinc-800/80 mt-0.5">
+                      <div className="flex justify-between text-[13px] font-extrabold text-white pt-2 border-t border-zinc-800 mt-1">
                         <span>Grand Total</span>
                         <span className="text-[#baa47f]">₹{totalAmount.toFixed(2)}</span>
                       </div>
+                    </div>
+                  </section>
+
+                  {/* SECTION 4: PAYMENT METHOD */}
+                  <section className="bg-zinc-900/90 border border-zinc-800 rounded-xl shadow-md p-3 flex flex-col gap-3">
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#baa47f] flex items-center gap-1.5">
+                      <Tag className="w-3 h-3" /> Payment Method
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: "CASH", label: "Cash at Table", icon: Banknote },
+                        { id: "PAY_ON_EXIT", label: "Pay on Exit", icon: LogOut }
+                      ].map((method) => {
+                        const isSelected = paymentMethod === method.id;
+                        const Icon = method.icon;
+                        return (
+                          <button
+                            key={method.id}
+                            onClick={() => setPaymentMethod(method.id as PaymentMethod)}
+                            className={`px-2.5 py-2.5 rounded-lg border flex items-center justify-start pl-3 gap-2.5 transition cursor-pointer ${
+                              isSelected
+                                ? "bg-[#baa47f]/10 border-[#baa47f]/60 shadow-[0_0_10px_rgba(186,164,127,0.15)]"
+                                : "bg-zinc-950/50 border-zinc-800 hover:bg-zinc-900"
+                            }`}
+                          >
+                            <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${isSelected ? "border-[#baa47f]" : "border-zinc-500"}`}>
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#baa47f]" />}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#baa47f]" : "text-zinc-500"}`} />
+                              <span className={`text-[10px] font-black tracking-wider uppercase truncate ${isSelected ? "text-[#baa47f]" : "text-zinc-300"}`}>
+                                {method.label}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 </motion.div>
@@ -2066,7 +2089,7 @@ export default function MenuPage() {
 
       {/* Floating Bottom Cart Bar (Shown when in menu tab with cart items) */}
       {cartItems.length > 0 && activeTab === "menu" && (
-        <div className="fixed bottom-16 left-4 right-4 max-w-xl mx-auto z-30">
+        <div className="fixed bottom-[76px] left-4 right-4 max-w-xl mx-auto z-30">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}

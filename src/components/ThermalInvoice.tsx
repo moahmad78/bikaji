@@ -201,7 +201,7 @@ export default function ThermalInvoice({
         {!isKitchenCopy && (
           <div className="text-center pt-4 flex flex-col items-center gap-1.5">
             <span className="text-[10px] text-zinc-650 uppercase font-bold tracking-wider">
-              Paid via {paymentMethod}
+              Paid via {paymentMethod.replace(/_/g, ' ')}
             </span>
             <div className="w-20 h-20 border border-zinc-250 p-1 bg-white flex items-center justify-center">
               {/* Mock QR for scanning payment details */}

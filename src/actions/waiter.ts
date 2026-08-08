@@ -149,6 +149,20 @@ export async function getWaiterDashboardData(branchId?: string, waiterUserId?: s
       repeatVisitsToSameTable
     };
 
+    // Fetch Pending Cash Requests
+    const pendingCashRequests = await db.order.findMany({
+      where: {
+        branchId: targetBranchId,
+        paymentMethod: PaymentMethod.CASH,
+        paymentStatus: PaymentStatus.PENDING,
+        deletedAt: null
+      },
+      include: {
+        table: true
+      },
+      orderBy: { createdAt: "asc" }
+    });
+
     return {
       success: true,
       tables,
@@ -156,6 +170,7 @@ export async function getWaiterDashboardData(branchId?: string, waiterUserId?: s
       readyOrders,
       activeDeliveries,
       deliveryHistory,
+      pendingCashRequests,
       performance
     };
   } catch (error: any) {
