@@ -780,14 +780,17 @@ export default function KitchenPage() {
       if (!matchesSearch) return false;
 
       // 2. Status Filter
-      if (selectedStatus === "READY") {
-        // Ready for Pickup ONLY includes orders waiting for waiter pickup
-        if (o.status !== "READY" || !!o.waiterName) return false;
-      } else if (selectedStatus === "OUT_FOR_DELIVERY") {
-        // Picked Up filter includes orders picked up by waiter
-        if (o.status !== "OUT_FOR_DELIVERY" && !o.waiterName) return false;
-      } else if (selectedStatus !== "ALL" && o.status !== selectedStatus) {
-        return false;
+      if (selectedStatus !== "ALL") {
+        if (selectedStatus === "NEW_ORDERS") {
+          if (o.status !== "PENDING" && o.status !== "RECEIVED") return false;
+        } else if (selectedStatus === "COOKING") {
+          if (o.status !== "ACCEPTED" && o.status !== "PREPARING") return false;
+        } else if (selectedStatus === "PICKUP") {
+          // Pickup contains both ready orders waiting for waiter, and orders picked up but not yet completed
+          if (o.status !== "READY" && o.status !== "OUT_FOR_DELIVERY") return false;
+        } else if (o.status !== selectedStatus) {
+          return false;
+        }
       }
 
       // 3. Priority Filter
@@ -826,7 +829,6 @@ export default function KitchenPage() {
         if (urgentFilter === "WAITING_30S" && (ageMs < 30_000 || ageMs >= 120_000)) return false;
         if (urgentFilter === "CRITICAL_2M" && ageMs < 120_000) return false;
       }
-
       return true;
     });
     // Use shared priority sorter: urgent pending → normal pending → accepted → cooking → ready → completed; newest first inside each group
@@ -836,9 +838,8 @@ export default function KitchenPage() {
   // Live Statistics Header counts
   const stats = useMemo(() => {
     const pending = orders.filter(o => o.status === "PENDING" || o.status === "RECEIVED").length;
-    const preparing = orders.filter(o => o.status === "PREPARING").length;
-    const ready = orders.filter(o => o.status === "READY" && !o.waiterName).length;
-    const pickedUp = orders.filter(o => o.status === "OUT_FOR_DELIVERY" || !!o.waiterName).length;
+    const cooking = orders.filter(o => o.status === "ACCEPTED" || o.status === "PREPARING").length;
+    const pickup = orders.filter(o => o.status === "READY" || o.status === "OUT_FOR_DELIVERY").length;
     const delayed = orders.filter(o => {
       if (!o.expectedReadyAt) return false;
       return new Date(o.expectedReadyAt).getTime() < Date.now();
@@ -848,8 +849,15 @@ export default function KitchenPage() {
       return (Date.now() - new Date(o.readyAt).getTime()) > 120000;
     }).length;
 
-    return { pending, preparing, ready, pickedUp, delayed, waitingOver2m, total: orders.length };
-  }, [orders, tick]);
+    return {
+      total: orders.length,
+      pending,
+      cooking,
+      pickup,
+      delayed,
+      waitingOver2m
+    };
+  }, [orders]);
 
   if (authLoading) {
     return (
@@ -991,22 +999,17 @@ export default function KitchenPage() {
           </div>
           <div className="px-4 py-2 rounded-lg bg-[#251416] border border-[#361f22] flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span className="text-xs text-zinc-300 font-bold">👨‍🍳 In Kitchen:</span>
-            <span className="text-sm font-extrabold text-blue-400">{stats.preparing}</span>
+            <span className="text-xs text-zinc-300 font-bold">👨‍🍳 Cooking:</span>
+            <span className="text-sm font-extrabold text-blue-400">{stats.cooking}</span>
           </div>
           <div className={`px-4 py-2 rounded-lg border flex items-center gap-2 transition ${
-            stats.ready > 0
+            stats.pickup > 0
               ? "bg-emerald-950/40 border-emerald-500/60 ring-1 ring-emerald-500/30"
               : "bg-[#251416] border-[#361f22]"
           }`}>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span className="text-xs text-zinc-300 font-bold">🟢 Ready for Pickup:</span>
-            <span className="text-sm font-extrabold text-emerald-400">{stats.ready}</span>
-          </div>
-          <div className="px-4 py-2 rounded-lg bg-[#251416] border border-[#361f22] flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-            <span className="text-xs text-zinc-300 font-bold">🚶 Picked Up:</span>
-            <span className="text-sm font-extrabold text-blue-400">{stats.pickedUp}</span>
+            <span className="text-xs text-zinc-300 font-bold">🟢 Pickup:</span>
+            <span className="text-sm font-extrabold text-emerald-400">{stats.pickup}</span>
           </div>
           {stats.waitingOver2m > 0 && (
             <div className="px-4 py-2 rounded-lg bg-amber-950/50 border border-amber-500/80 flex items-center gap-2 animate-pulse">
@@ -1076,10 +1079,9 @@ export default function KitchenPage() {
             <div className="bg-[#1c0f11] border border-[#361f22] rounded-lg p-0.5 flex gap-1 flex-wrap">
               {[
                 { id: "ALL", label: `All (${stats.total})` },
-                { id: "PENDING", label: `🟠 New Orders (${stats.pending})` },
-                { id: "PREPARING", label: `👨‍🍳 Cooking (${stats.preparing})` },
-                { id: "READY", label: `🟢 Ready for Pickup (${stats.ready})`, highlight: stats.ready > 0, warning: stats.waitingOver2m > 0 },
-                { id: "OUT_FOR_DELIVERY", label: `🚶 Picked Up (${stats.pickedUp})` },
+                { id: "NEW_ORDERS", label: `🟠 New Orders (${stats.pending})` },
+                { id: "COOKING", label: `👨‍🍳 Cooking (${stats.cooking})` },
+                { id: "PICKUP", label: `🟢 Pickup (${stats.pickup})`, highlight: stats.pickup > 0, warning: stats.waitingOver2m > 0 },
                 { id: "HISTORY", label: `📜 History (${historyOrders.length > 0 ? historyOrders.length : "..."})` }
               ].map(item => (
                 <button
@@ -1523,6 +1525,18 @@ export default function KitchenPage() {
                           <span className="text-sm font-extrabold text-white font-display">
                             TICKET {order.orderNumber}
                           </span>
+                          {selectedStatus === "ALL" && (
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                               order.status === "PENDING" || order.status === "RECEIVED" ? "text-amber-400 bg-amber-500/20" :
+                               order.status === "ACCEPTED" || order.status === "PREPARING" ? "text-blue-400 bg-blue-500/20" :
+                               order.status === "READY" || order.status === "OUT_FOR_DELIVERY" ? "text-emerald-400 bg-emerald-500/20" : 
+                               "text-zinc-300 bg-zinc-800"
+                            }`}>
+                              {order.status === "PENDING" || order.status === "RECEIVED" ? "NEW" :
+                               order.status === "ACCEPTED" || order.status === "PREPARING" ? "COOKING" :
+                               order.status === "READY" || order.status === "OUT_FOR_DELIVERY" ? "PICKUP" : order.status}
+                            </span>
+                          )}
                           <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full border ${priority.style}`}>
                             {priority.label}
                           </span>
