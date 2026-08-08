@@ -1614,69 +1614,50 @@ export default function WaiterDashboard() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#1c0f11] border border-[#361f22] rounded-2xl max-w-sm w-full p-6 flex flex-col gap-5 shadow-modal text-white relative overflow-hidden"
+              className="bg-[#1c0f11] border border-[#361f22] rounded-2xl max-w-md w-full p-6 flex flex-col gap-5 shadow-modal text-white relative overflow-y-auto max-h-[90vh]"
             >
               {selectedPaymentOrder.paymentStatus === "PAID" ? (
                 // SUCCESS STATE
-                <div className="flex flex-col items-center text-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2">
-                    <CheckCircle className="w-8 h-8 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black font-display uppercase tracking-wider text-emerald-400">
+                <div className="flex flex-col items-center">
+                  <div className="mb-6 flex flex-col items-center gap-2 print:hidden text-center">
+                    <CheckCircle className="w-12 h-12 text-emerald-500" />
+                    <h3 className="text-lg font-black text-white uppercase tracking-wider">
                       Payment Received
                     </h3>
-                    <p className="text-sm text-zinc-400 mt-1">
+                    <p className="text-xs text-zinc-400">
                       ₹{selectedPaymentOrder.finalAmount.toFixed(2)} collected successfully.
                     </p>
                   </div>
                   
-                  {/* Invisible receipt for printing */}
-                  <div className="hidden print:block">
-                    <ThermalInvoice
-                      order={{
-                        orderNumber: selectedPaymentOrder.orderNumber,
-                        customerName: selectedPaymentOrder.customerName || "Walk-in Guest",
-                        createdAt: selectedPaymentOrder.createdAt,
-                        table: selectedPaymentOrder.table,
-                        items: selectedPaymentOrder.items
-                      }}
-                      invoiceNumber={`INV-${selectedPaymentOrder.orderNumber}`}
-                      billingDetails={{
-                        subtotal: selectedPaymentOrder.finalAmount, // simplified
-                        discountAmount: 0,
-                        gstAmount: 0,
-                        cgstAmount: 0,
-                        sgstAmount: 0,
-                        roundOff: 0,
-                        serviceCharge: 0,
-                        finalAmount: selectedPaymentOrder.finalAmount,
-                      }}
-                      settings={{
-                        name: "BIKAJI",
-                        address: "New Delhi, India",
-                        phone: "+91 9999999999",
-                        currency: "₹"
-                      }}
-                      cashierName={session?.user?.name || "Waiter"}
-                      paymentMethod={selectedPaymentOrder.paymentMethod}
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2 w-full mt-4">
-                    <button
-                      onClick={() => window.print()}
-                      className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest transition flex justify-center items-center gap-2"
-                    >
-                      <FileText className="w-4 h-4" /> Print Receipt
-                    </button>
-                    <button
-                      onClick={() => setSelectedPaymentOrder(null)}
-                      className="w-full py-3 rounded-lg bg-[#251416] hover:bg-[#361f22] text-zinc-300 text-xs font-black uppercase tracking-widest transition"
-                    >
-                      Close
-                    </button>
-                  </div>
+                  <ThermalInvoice
+                    order={{
+                      orderNumber: selectedPaymentOrder.orderNumber,
+                      customerName: selectedPaymentOrder.customerName || "Walk-in Guest",
+                      createdAt: selectedPaymentOrder.createdAt,
+                      table: selectedPaymentOrder.table,
+                      items: selectedPaymentOrder.items
+                    }}
+                    invoiceNumber={`INV-${selectedPaymentOrder.orderNumber}`}
+                    billingDetails={{
+                      subtotal: selectedPaymentOrder.finalAmount, // simplified
+                      discountAmount: 0,
+                      gstAmount: 0,
+                      cgstAmount: 0,
+                      sgstAmount: 0,
+                      roundOff: 0,
+                      serviceCharge: 0,
+                      finalAmount: selectedPaymentOrder.finalAmount,
+                    }}
+                    settings={{
+                      name: "BIKAJI RESTAURANT",
+                      address: "123 Food Street, Culinary District\nCity Center, 400001",
+                      phone: "+91 98765 43210",
+                      currency: "INR"
+                    }}
+                    cashierName={session?.user?.name || "Waiter"}
+                    paymentMethod={selectedPaymentOrder.paymentMethod}
+                    onClose={() => setSelectedPaymentOrder(null)}
+                  />
                 </div>
               ) : (
                 // CONFIRMATION STATE
