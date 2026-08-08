@@ -5,96 +5,61 @@
  */
 
 // ─── Status Sort Weights ────────────────────────────────────────────────────
-const KDS_STATUS_WEIGHT: Record<string, number> = {
-  PENDING: 0,
-  RECEIVED: 0,
-  ACCEPTED: 1,
-  PREPARING: 2,
-  READY: 3,
-  OUT_FOR_DELIVERY: 4,
-  SERVED: 5,
-  DELIVERED: 5,
-  COMPLETED: 6,
-  CANCELLED: 7,
-  REFUNDED: 7,
+const STATUS_PRIORITY: Record<string, number> = {
+  PENDING: 1,
+  RECEIVED: 1,
+  ACCEPTED: 2,
+  PREPARING: 3,
+  COOKING: 3,
+  READY: 4,
+  OUT_FOR_DELIVERY: 5,
+  DELIVERED: 6,
+  SERVED: 6,
+  COMPLETED: 7,
+  CANCELLED: 8,
+  REFUNDED: 8,
 };
 
-const WAITER_STATUS_WEIGHT: Record<string, number> = {
-  READY: 0,
-  OUT_FOR_DELIVERY: 1,
-  SERVED: 2,
-  DELIVERED: 2,
-  COMPLETED: 3,
-  CANCELLED: 4,
+export type SortableOrder = {
+  id: string;
+  orderNumber?: string;
+  status: string;
+  createdAt: string | Date;
+  updatedAt?: string | Date;
+  [key: string]: any;
 };
 
-const ADMIN_STATUS_WEIGHT: Record<string, number> = {
-  PENDING: 0,
-  RECEIVED: 0,
-  ACCEPTED: 1,
-  PREPARING: 2,
-  READY: 3,
-  OUT_FOR_DELIVERY: 4,
-  SERVED: 5,
-  DELIVERED: 5,
-  COMPLETED: 6,
-  CANCELLED: 7,
-  REFUNDED: 7,
-};
-
-// Helper: Get latest activity timestamp (updatedAt || createdAt)
-function getLatestTimestamp<T extends { createdAt: string; updatedAt?: string }>(order: T): number {
-  const updated = order.updatedAt ? new Date(order.updatedAt).getTime() : 0;
-  const created = new Date(order.createdAt).getTime();
-  return Math.max(updated, created);
-}
-
-// ─── Kitchen Order Sorting ───────────────────────────────────────────────────
-// Priority: Urgent Pending (pending >= 30s) → Normal Pending → Accepted → Preparing → Ready → Delivered → Completed
-// Inside each group: sorted by latest activity (updatedAt || createdAt) descending
-export function sortKDSOrders<T extends { status: string; createdAt: string; updatedAt?: string }>(orders: T[]): T[] {
+/**
+ * Deterministically sorts an array of orders based on:
+ * 1. Status Priority (e.g. PENDING > ACCEPTED > PREPARING)
+ * 2. Newest Age First within the exact same status (so new orders pop at the TOP of their group)
+ * 3. Order ID as a stable fallback
+ */
+export function sortOrders<T extends SortableOrder>(orders: T[]): T[] {
+  // Create a shallow copy so we don't mutate the original array if it's frozen by React
   return [...orders].sort((a, b) => {
-    const nowMs = Date.now();
-    const ageA = nowMs - new Date(a.createdAt).getTime();
-    const ageB = nowMs - new Date(b.createdAt).getTime();
+    // 1. Sort by Status Priority
+    const weightA = STATUS_PRIORITY[a.status?.toUpperCase()] ?? 99;
+    const weightB = STATUS_PRIORITY[b.status?.toUpperCase()] ?? 99;
 
-    const isPendingA = a.status === "PENDING" || a.status === "RECEIVED";
-    const isPendingB = b.status === "PENDING" || b.status === "RECEIVED";
+    if (weightA !== weightB) {
+      return weightA - weightB; // Lower number comes first
+    }
 
-    // Urgent pending (>= 30s) always first
-    const urgentA = isPendingA && ageA >= 30_000;
-    const urgentB = isPendingB && ageB >= 30_000;
+    // 2. Sort by Age (Newest First = Descending createdAt)
+    const timeA = new Date(a.createdAt).getTime();
+    const timeB = new Date(b.createdAt).getTime();
 
-    if (urgentA && !urgentB) return -1;
-    if (!urgentA && urgentB) return 1;
+    if (timeA !== timeB) {
+      return timeB - timeA; // Higher time (newer) comes first
+    }
 
-    const weightA = KDS_STATUS_WEIGHT[a.status] ?? 99;
-    const weightB = KDS_STATUS_WEIGHT[b.status] ?? 99;
-    if (weightA !== weightB) return weightA - weightB;
-
-    // Most recent activity first within same status group
-    return getLatestTimestamp(b) - getLatestTimestamp(a);
-  });
-}
-
-// ─── Waiter Ready Order Sorting ─────────────────────────────────────────────
-// Ready → Picked Up → Delivered → Completed; most recent activity first inside each group
-export function sortWaiterOrders<T extends { status: string; createdAt: string; updatedAt?: string }>(orders: T[]): T[] {
-  return [...orders].sort((a, b) => {
-    const weightA = WAITER_STATUS_WEIGHT[a.status] ?? 99;
-    const weightB = WAITER_STATUS_WEIGHT[b.status] ?? 99;
-    if (weightA !== weightB) return weightA - weightB;
-    return getLatestTimestamp(b) - getLatestTimestamp(a);
-  });
-}
-
-// ─── Admin Order Sorting ─────────────────────────────────────────────────────
-export function sortAdminOrders<T extends { status: string; createdAt: string; updatedAt?: string }>(orders: T[]): T[] {
-  return [...orders].sort((a, b) => {
-    const weightA = ADMIN_STATUS_WEIGHT[a.status] ?? 99;
-    const weightB = ADMIN_STATUS_WEIGHT[b.status] ?? 99;
-    if (weightA !== weightB) return weightA - weightB;
-    return getLatestTimestamp(b) - getLatestTimestamp(a);
+    // 3. Fallback to Order Number or ID for absolute deterministic sorting
+    if (a.orderNumber && b.orderNumber) {
+      return b.orderNumber.localeCompare(a.orderNumber);
+    }
+    
+    return b.id.localeCompare(a.id);
   });
 }
 

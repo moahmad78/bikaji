@@ -27,7 +27,7 @@ import {
   getAdminStaff,
   assignWaiterToTable
 } from "@/actions/admin";
-import { sortAdminOrders } from "@/lib/order-priority";
+import { sortOrders } from "@/lib/order-priority";
 import { authClient } from "@/lib/auth-client";
 
 export default function AdminOrdersPage() {
@@ -64,7 +64,7 @@ export default function AdminOrdersPage() {
       const staffRes = await getAdminStaff();
       
       if (orderRes.success && orderRes.orders) {
-        setOrders(orderRes.orders);
+        setOrders(sortOrders(orderRes.orders));
         setError(null);
       } else {
         setError(orderRes.error || "Failed to load orders.");
@@ -107,7 +107,7 @@ export default function AdminOrdersPage() {
         const existing = prev.find(o => o.id === updatedOrder.id);
         const mergedOrder = existing ? { ...existing, ...updatedOrder } : updatedOrder;
         const filtered = prev.filter(o => o.id !== updatedOrder.id);
-        return [mergedOrder, ...filtered];
+        return sortOrders([...filtered, mergedOrder]);
       });
       // Optionally update selectedOrder if it's the one currently open
       setSelectedOrder((prev: any) => (prev?.id === updatedOrder.id ? { ...prev, ...updatedOrder } : prev));
@@ -256,7 +256,7 @@ export default function AdminOrdersPage() {
 
       return true;
     });
-    return sortAdminOrders(filtered);
+    return sortOrders(filtered);
   }, [orders, searchQuery, statusFilter]);
 
   if (loading) {

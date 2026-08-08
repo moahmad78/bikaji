@@ -35,6 +35,7 @@ import Image from "next/image";
 import { getWaiterDashboardData, resolveServiceRequest, serveOrder, acceptDelivery, deliverOrder, getOrCreateWaiterProfile } from "@/actions/waiter";
 import { authClient } from "@/lib/auth-client";
 import ThermalInvoice from "@/components/ThermalInvoice";
+import { sortOrders } from "@/lib/order-priority";
 
 // Local Interfaces
 interface TableSession {
@@ -218,10 +219,10 @@ export default function WaiterDashboard() {
     try {
       const res = await getWaiterDashboardData(undefined, session.user.id);
       if (res.success && res.tables) {
-        setTables(res.tables as any);
+        setTables(res.tables.map((t: any) => ({ ...t, orders: sortOrders(t.orders) })) as any);
         setPendingRequests(res.pendingRequests as any);
         setPendingCashRequests((res as any).pendingCashRequests || []);
-        setReadyOrders(res.readyOrders as any);
+        setReadyOrders(sortOrders(res.readyOrders as any));
         if ((res as any).activeDeliveries) {
           setMyDeliveries((res as any).activeDeliveries as any);
         }
@@ -350,7 +351,7 @@ export default function WaiterDashboard() {
       playAlertSound("order-ready");
       setReadyOrders(prev => {
         const filtered = prev.filter(o => o.id !== readyOrder.id);
-        return [readyOrder, ...filtered];
+        return sortOrders([...filtered, readyOrder]);
       });
       setTables(prev => prev.map(t => {
         if (t.id === readyOrder.tableId) {
@@ -361,7 +362,7 @@ export default function WaiterDashboard() {
           }
           return {
             ...t,
-            orders: updatedOrders
+            orders: sortOrders(updatedOrders)
           };
         }
         return t;
@@ -377,7 +378,7 @@ export default function WaiterDashboard() {
       if (data.order) {
         setMyDeliveries(prev => {
           const filtered = prev.filter(o => o.id !== data.order.id);
-          return [data.order, ...filtered];
+          return sortOrders([...filtered, data.order]);
         });
         handleUpdateOrderInTables(data.order);
       }
@@ -390,7 +391,7 @@ export default function WaiterDashboard() {
       setTables(prev => prev.map(t => {
         if (t.id === newOrder.tableId) {
           const filtered = t.orders.filter((o: any) => o.id !== newOrder.id);
-          return { ...t, orders: [newOrder, ...filtered], status: "OCCUPIED" };
+          return { ...t, orders: sortOrders([...filtered, newOrder]), status: "OCCUPIED" };
         }
         return t;
       }));
@@ -407,7 +408,7 @@ export default function WaiterDashboard() {
           const filtered = t.orders.filter((o: any) => o.id !== updatedOrder.id);
           return {
             ...t,
-            orders: [merged, ...filtered]
+            orders: sortOrders([...filtered, merged])
           };
         }
         return t;

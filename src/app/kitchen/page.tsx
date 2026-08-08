@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  sortKDSOrders,
+  sortOrders,
   getOrderAgingInfo,
   getAgingBorderClass,
   getAgingGlowClass,
@@ -338,7 +338,7 @@ export default function KitchenPage() {
               }
             })) as any
           })) as any;
-          setOrders(mappedOrders);
+          setOrders(sortOrders(mappedOrders));
         }
       } catch (err) {
         console.error("Error loading KDS orders:", err);
@@ -393,7 +393,7 @@ export default function KitchenPage() {
       playChime("new");
       setOrders(prev => {
         const filtered = prev.filter(o => o.id !== newOrder.id);
-        return [newOrder, ...filtered];
+        return sortOrders([...filtered, newOrder]);
       });
       // Mark as new — auto-remove glow after 10s
       setNewOrderIds(prev => { const next = new Set(prev); next.add(newOrder.id); return next; });
@@ -409,7 +409,7 @@ export default function KitchenPage() {
         const existing = prev.find(o => o.id === updatedOrder.id);
         const mergedOrder = existing ? { ...existing, ...updatedOrder } : updatedOrder;
         const filtered = prev.filter(o => o.id !== updatedOrder.id);
-        return [mergedOrder, ...filtered];
+        return sortOrders([...filtered, mergedOrder]);
       });
       // Mark as status-changed — flash for 3s
       setUpdatedOrderIds(prev => { const next = new Set(prev); next.add(updatedOrder.id); return next; });
@@ -830,7 +830,7 @@ export default function KitchenPage() {
       return true;
     });
     // Use shared priority sorter: urgent pending → normal pending → accepted → cooking → ready → completed; newest first inside each group
-    return sortKDSOrders(baseFiltered);
+    return sortOrders(baseFiltered);
   }, [orders, searchQuery, selectedStatus, selectedPriority, selectedCategory, urgentFilter, tick]);
 
   // Live Statistics Header counts
