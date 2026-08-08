@@ -1815,9 +1815,9 @@ export default function WaiterDashboard() {
                   🍽 Ordered Dishes
                 </span>
                 <div className="bg-[#14080a] p-3 rounded-xl border border-[#251416] flex flex-col gap-1.5 text-xs">
-                  {selectedHistoryOrder.items.map(item => (
-                    <div key={item.id} className="flex justify-between items-center">
-                      <span className="text-zinc-200">{item.quantity}x {item.name}</span>
+                  {selectedHistoryOrder.items && selectedHistoryOrder.items.map((item: any) => (
+                    <div key={item.id || Math.random()} className="flex justify-between items-center">
+                      <span className="text-zinc-200">{item.quantity}x {item.name || (item.menuItem && item.menuItem.name)}</span>
                     </div>
                   ))}
                   <div className="border-t border-[#251416] pt-1.5 flex justify-between items-center text-sm font-extrabold text-gold-400">
